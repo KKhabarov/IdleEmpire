@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6, type: 3}
+  m_Name: Upgrade_13_FranchiseDeal
+  m_EditorClassIdentifier:
+  _upgradeName: Franchise Deal
+  _description: Open donut shops nationwide.
+  _icon: {fileID: 0}
+  _cost: 25000000
+  _multiplier: 3
+  _targetBusinessIndex: 4
