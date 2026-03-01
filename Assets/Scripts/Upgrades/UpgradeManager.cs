@@ -163,14 +163,22 @@ namespace IdleEmpire.Upgrades
         }
 
         /// <summary>
-        /// Clears all purchased upgrades. Used during a prestige reset.
+        /// Clears all purchased upgrades and fires <see cref="OnUpgradesChanged"/>.
+        /// Used during a prestige reset.
         /// Note: upgrade multipliers already applied to businesses are not reversed here;
         /// callers should also reset the business income multipliers (e.g., via <see cref="Business.BusinessController.ResetMultiplier"/>).
         /// </summary>
         public void ResetUpgrades()
         {
             _purchasedIndices.Clear();
+            OnUpgradesChanged?.Invoke();
         }
+
+        /// <summary>
+        /// Clears all purchased upgrades and fires <see cref="OnUpgradesChanged"/>.
+        /// Equivalent to <see cref="ResetUpgrades"/>; provided for clarity at call sites.
+        /// </summary>
+        public void ResetAllUpgrades() => ResetUpgrades();
 
         #endregion
 
