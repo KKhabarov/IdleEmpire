@@ -184,6 +184,8 @@ namespace IdleEmpire.Upgrades
 
         #endregion
 
+        #region Private Helpers
+
         private void ApplyUpgrade(UpgradeData upgrade)
         {
             if (_businesses == null) return;
