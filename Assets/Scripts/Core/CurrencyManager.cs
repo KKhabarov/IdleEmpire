@@ -23,6 +23,7 @@ namespace IdleEmpire.Core
                 return;
             }
             Instance = this;
+            _money = _startingMoney;
         }
 
         #endregion
@@ -46,6 +47,12 @@ namespace IdleEmpire.Core
         /// Passes the positive amount that was spent. Use this for lifetime-spending tracking.
         /// </summary>
         public event Action<double> OnMoneySpent;
+
+        #endregion
+
+        #region Inspector Fields
+
+        [SerializeField] private double _startingMoney = 100;
 
         #endregion
 
