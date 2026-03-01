@@ -1,4 +1,96 @@
-# Idle Empire Tycoon
+# 🏭 Idle Empire Tycoon
+
+A classic idle/clicker tycoon game built with Unity 2D.
+
+## 🎮 Features
+
+### Core Mechanics
+- 💰 10 unique businesses to own and upgrade
+- ⬆️ 15 upgrades to boost your income
+- 👨‍💼 10 managers to automate your empire
+- 🔄 Prestige system for permanent bonuses
+- 📴 Offline earnings while you're away
+
+### Systems
+- 🎓 Interactive tutorial for new players
+- 🔊 Full audio system (music + SFX)
+- 🏆 20 achievements to unlock
+- 📊 Detailed statistics tracking
+- ⚙️ Settings with audio controls
+- 💾 Auto-save every 60 seconds
+- 📱 Rewarded ads support (AdMob stub)
+
+### UI/UX
+- 🛒 Shop with upgrades and managers
+- 📋 Tabbed interface (Main / Shop / Prestige / Achievements / Stats / Settings)
+- 🔔 Notification badges on tabs
+- 🎯 Bulk buy (x1 / x10 / x25 / Max)
+- ✨ Click feedback with floating numbers
+- 📦 Offline earnings popup with ad bonus
+
+## 🏗️ Architecture
+
+### Project Structure
+```
+Assets/
+├── Scripts/
+│   ├── Core/          GameManager, CurrencyManager, SaveManager, GameVersion
+│   ├── Business/      BusinessData, BusinessController, BusinessUI
+│   ├── Upgrades/      UpgradeData, UpgradeManager
+│   ├── Managers/      ManagerData, ManagerController
+│   ├── Achievements/  AchievementData, AchievementManager, AchievementUI, AchievementNotification
+│   ├── Statistics/    StatisticsTracker, StatisticsUI
+│   ├── Tutorial/      TutorialStep, TutorialManager, TutorialUI
+│   ├── Audio/         AudioManager, UIButtonSound
+│   ├── UI/            MainUI, ShopUI, PrestigeUI, TabController, SettingsUI, BulkBuyController,
+│   │                  ConfirmDialog, NotificationBadge, AutoCollectIndicator,
+│   │                  OfflineEarningsPopup, ClickFeedback
+│   ├── Utils/         NumberFormatter, OfflineCalculator, TimeFormatter
+│   ├── Ads/           AdManager
+│   └── Tests/Editor/  All unit tests
+├── Data/
+│   ├── Businesses/    10 ScriptableObject assets
+│   ├── Upgrades/      15 ScriptableObject assets
+│   ├── Managers/      10 ScriptableObject assets
+│   ├── Achievements/  20 ScriptableObject assets
+│   └── Tutorial/      7 ScriptableObject assets
+└── Scenes/            MainScene
+```
+
+### Design Patterns
+- **Singleton** — GameManager, CurrencyManager, AudioManager, AdManager
+- **ScriptableObject** — All game data (businesses, upgrades, managers, achievements, tutorial steps)
+- **Event-driven** — C# events for loose coupling between systems
+- **MVC-ish** — Data (ScriptableObject) / Controller (MonoBehaviour) / UI (MonoBehaviour) separation
+
+### Economy Balance
+See `Assets/Data/ECONOMY_BALANCE.md` for detailed economy documentation.
+
+## 🛠️ Tech Stack
+- **Engine:** Unity 2D (2022.3 LTS+)
+- **Language:** C# 9+
+- **UI:** Unity UI + TextMeshPro
+- **Persistence:** PlayerPrefs + JsonUtility
+- **Testing:** NUnit (Unity Test Framework)
+- **Ads:** Google AdMob (stub — ready for integration)
+
+## 📋 Development Sprints
+| Sprint | Content | Status |
+|--------|---------|--------|
+| 1 | Currency + Business system | ✅ |
+| 2 | Upgrades + Managers | ✅ |
+| 3+4 | UI + Prestige + Visual polish | ✅ |
+| 5 | Game content (35 assets) + Unit tests | ✅ |
+| 6 | Tutorial + Audio | ✅ |
+| 7 | Achievements + Statistics | ✅ |
+| 8 | Settings + Final polish | ✅ |
+
+## 🚀 Getting Started
+1. Open the project in Unity 2022.3 or later
+2. Open `Assets/Scenes/MainScene.unity`
+3. Press Play
+
+---
 
 > A mobile idle/clicker game built with Unity — build your business empire from a humble lemonade stand all the way to a space station!
 
