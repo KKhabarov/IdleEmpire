@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using IdleEmpire.Audio;
 using IdleEmpire.Core;
+using IdleEmpire.Tutorial;
 using IdleEmpire.Utils;
 
 namespace IdleEmpire.UI
@@ -197,7 +198,7 @@ namespace IdleEmpire.UI
 
         private void OnResetTutorialClicked()
         {
-            PlayerPrefs.DeleteKey("IdleEmpire_TutorialCompleted");
+            PlayerPrefs.DeleteKey(TutorialManager.TutorialCompleteKey);
             PlayerPrefs.Save();
             AudioManager.Instance?.PlayClick();
             Debug.Log("[SettingsUI] Tutorial progress reset.");
