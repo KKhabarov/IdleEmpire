@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using IdleEmpire.Core;
+using IdleEmpire.Audio;
 
 namespace IdleEmpire.Business
 {
@@ -104,10 +105,19 @@ namespace IdleEmpire.Business
             var currency = GameManager.Instance?.CurrencyManager;
             if (currency == null) return false;
 
-            if (!currency.SpendMoney(GetCurrentCost())) return false;
+            if (!currency.SpendMoney(GetCurrentCost())) 
+            {
+                AudioManager.Instance?.PlayError();
+                return false;
+            }
 
             _level++;
             OnLevelChanged?.Invoke(this);
+
+            if (_level % 25 == 0)
+                AudioManager.Instance?.PlayLevelUp();
+            else
+                AudioManager.Instance?.PlayPurchase();
 
             Debug.Log($"[BusinessController] {_businessData.BusinessName} upgraded to level {_level}.");
             return true;
@@ -174,6 +184,7 @@ namespace IdleEmpire.Business
             if (income <= 0) return;
 
             GameManager.Instance?.CurrencyManager?.AddMoney(income);
+            AudioManager.Instance?.PlayCollect();
             OnIncomeCollected?.Invoke(this, income);
         }
 

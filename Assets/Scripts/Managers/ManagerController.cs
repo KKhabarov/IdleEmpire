@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using IdleEmpire.Business;
 using IdleEmpire.Core;
+using IdleEmpire.Audio;
 
 namespace IdleEmpire.Managers
 {
@@ -76,6 +77,7 @@ namespace IdleEmpire.Managers
             _hiredManagerIndices.Add(managerIndex);
             ActivateManagerForBusiness(manager.TargetBusinessIndex);
             OnManagersChanged?.Invoke();
+            AudioManager.Instance?.PlayManagerHire();
 
             Debug.Log($"[ManagerController] Manager '{manager.ManagerName}' hired.");
             return true;

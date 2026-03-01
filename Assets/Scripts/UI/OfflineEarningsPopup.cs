@@ -4,6 +4,7 @@ using TMPro;
 using IdleEmpire.Core;
 using IdleEmpire.Ads;
 using IdleEmpire.Utils;
+using IdleEmpire.Audio;
 
 namespace IdleEmpire.UI
 {
@@ -58,6 +59,8 @@ namespace IdleEmpire.UI
 
             if (_popupPanel != null)
                 _popupPanel.SetActive(true);
+
+            AudioManager.Instance?.PlayOfflineEarnings();
         }
 
         #endregion
