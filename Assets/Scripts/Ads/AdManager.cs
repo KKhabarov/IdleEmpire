@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace IdleEmpire.Ads
@@ -21,6 +22,16 @@ namespace IdleEmpire.Ads
     /// </remarks>
     public class AdManager : MonoBehaviour
     {
+        #region Events
+
+        /// <summary>
+        /// Fired when the player successfully earns a reward from a rewarded ad.
+        /// The argument is the reward multiplier (e.g. 2.0 for 2× earnings).
+        /// </summary>
+        public event Action<double> OnRewardClaimed;
+
+        #endregion
+
         #region Singleton
 
         /// <summary>Shared instance of the AdManager.</summary>
@@ -71,12 +82,14 @@ namespace IdleEmpire.Ads
 
         /// <summary>
         /// Called when the player successfully earns a reward from a rewarded ad.
+        /// Fires <see cref="OnRewardClaimed"/> so listeners (e.g. <see cref="IdleEmpire.UI.OfflineEarningsPopup"/>)
+        /// can apply the reward.
         /// </summary>
         /// <param name="rewardMultiplier">Multiplier to apply as the reward (e.g. 2.0 for 2× earnings).</param>
         public void OnAdRewarded(double rewardMultiplier)
         {
-            // TODO: Implement reward logic, e.g. temporary income multiplier.
             Debug.Log($"[AdManager] OnAdRewarded — reward multiplier: {rewardMultiplier}x (stub).");
+            OnRewardClaimed?.Invoke(rewardMultiplier);
         }
 
         #endregion

@@ -3,6 +3,7 @@ using UnityEngine;
 using IdleEmpire.Business;
 using IdleEmpire.Upgrades;
 using IdleEmpire.Managers;
+using IdleEmpire.UI;
 using IdleEmpire.Utils;
 
 namespace IdleEmpire.Core
@@ -13,6 +14,13 @@ namespace IdleEmpire.Core
     /// </summary>
     public class GameManager : MonoBehaviour
     {
+        #region Events
+
+        /// <summary>Fired after a prestige reset is completed so UI can refresh.</summary>
+        public event Action OnPrestigeReset;
+
+        #endregion
+
         #region Singleton
 
         /// <summary>The single shared instance of GameManager.</summary>
@@ -52,6 +60,9 @@ namespace IdleEmpire.Core
         [SerializeField] private float _autoSaveInterval = 60f;
         [SerializeField] private float _maxOfflineHours = 8f;
         [SerializeField] private double _prestigeBonusPerReset = 0.5;
+
+        [Header("UI")]
+        [SerializeField] private OfflineEarningsPopup _offlineEarningsPopup;
 
         #endregion
 
@@ -99,8 +110,12 @@ namespace IdleEmpire.Core
 
                     if (offlineEarnings > 0)
                     {
-                        _currencyManager?.AddMoney(offlineEarnings);
-                        Debug.Log($"[GameManager] Offline earnings applied: {NumberFormatter.FormatNumber(offlineEarnings)}");
+                        if (_offlineEarningsPopup != null)
+                            _offlineEarningsPopup.Show(offlineEarnings);
+                        else
+                            _currencyManager?.AddMoney(offlineEarnings);
+
+                        Debug.Log($"[GameManager] Offline earnings: {NumberFormatter.FormatNumber(offlineEarnings)}");
                     }
                 }
                 else
@@ -232,6 +247,7 @@ namespace IdleEmpire.Core
             _currencyManager?.SetMoney(0);
             SaveGame();
 
+            OnPrestigeReset?.Invoke();
             Debug.Log($"[GameManager] Prestige reset performed. New multiplier: {_prestigeMultiplier}");
         }
 

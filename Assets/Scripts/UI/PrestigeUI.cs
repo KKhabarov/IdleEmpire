@@ -47,6 +47,13 @@ namespace IdleEmpire.UI
 
         #region Unity Callbacks
 
+        private void Awake()
+        {
+            _confirmButton?.onClick.AddListener(OnConfirmPrestigeClicked);
+            _cancelButton?.onClick.AddListener(OnCancelPrestigeClicked);
+            _prestigeButton?.onClick.AddListener(OnPrestigeButtonClicked);
+        }
+
         private void OnEnable()
         {
             LoadCurrentMultiplier();
@@ -115,14 +122,12 @@ namespace IdleEmpire.UI
         /// <summary>Called by the Confirm button. Performs the prestige reset.</summary>
         public void OnConfirmPrestigeClicked()
         {
-            float nextMultiplier = _currentPrestigeMultiplier + _multiplierIncrement;
-            GameManager.Instance?.PerformPrestige(nextMultiplier);
-
-            _currentPrestigeMultiplier = nextMultiplier;
+            GameManager.Instance?.PrestigeReset();
 
             if (_confirmationPanel != null)
                 _confirmationPanel.SetActive(false);
 
+            LoadCurrentMultiplier();
             RefreshUI();
         }
 

@@ -96,6 +96,9 @@ namespace IdleEmpire.Managers
             return _allManagers ?? Array.Empty<ManagerData>();
         }
 
+        /// <summary>Returns the total number of managers (hired or not).</summary>
+        public int GetManagerCount() => _allManagers?.Length ?? 0;
+
         /// <summary>
         /// Returns the list of managers that have not yet been hired.
         /// </summary>
