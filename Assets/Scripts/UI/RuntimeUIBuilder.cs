@@ -3,10 +3,14 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 using TMPro;
 using IdleEmpire.Business;
 using IdleEmpire.Core;
 using IdleEmpire.Utils;
+using IdleEmpire.Upgrades;
+using IdleEmpire.Managers;
+using IdleEmpire.Audio;
 
 namespace IdleEmpire.UI
 {
@@ -43,9 +47,28 @@ namespace IdleEmpire.UI
         private float _incomeUpdateTimer;
         private const float IncomeUpdateInterval = 1f;
 
+        // Tab panels
+        private GameObject _businessPanel;
+        private GameObject _shopPanel;
+        private GameObject _prestigePanel;
+        private GameObject _settingsPanel;
+        private Button[] _tabButtons;
+        private int _activeTabIndex = 0;
+
+        // Shop state
+        private Transform _shopContent;
+        private readonly List<ShopItemRef> _shopItemCosts = new List<ShopItemRef>();
+
+        // Prestige button (needs enable/disable based on income)
+        private Button _prestigeActionBtn;
+
+        // Cached manager references
+        private UpgradeManager _upgradeManager;
+        private ManagerController _managerController;
+
         #endregion
 
-        #region Inner Type
+        #region Inner Types
 
         private class BusinessCardRefs
         {
@@ -57,6 +80,12 @@ namespace IdleEmpire.UI
             public Button BuyButton;
             public Button CollectButton;
             public GameObject CollectGO;
+        }
+
+        private struct ShopItemRef
+        {
+            public Button Btn;
+            public double Cost;
         }
 
         #endregion
@@ -97,6 +126,15 @@ namespace IdleEmpire.UI
                 refs.Controller.OnLevelChanged    -= OnLevelChanged;
                 refs.Controller.OnCycleProgress   -= OnCycleProgress;
             }
+
+            if (_upgradeManager != null)
+                _upgradeManager.OnUpgradesChanged -= OnShopDataChanged;
+
+            if (_managerController != null)
+                _managerController.OnManagersChanged -= OnShopDataChanged;
+
+            if (GameManager.Instance != null)
+                GameManager.Instance.OnPrestigeReset -= OnPrestigeResetHandler;
         }
 
         #endregion
@@ -110,15 +148,63 @@ namespace IdleEmpire.UI
 
             BuildBackground(root);
 
-            float hudHeight    = 160f;
-            float navHeight    = 120f;
+            float hudHeight = 160f;
+            float navHeight = 120f;
 
-            RectTransform hud = BuildHUD(root, hudHeight);
+            BuildHUD(root, hudHeight);
+
+            // Discover managers early so panel builders can use them
+            _upgradeManager    = FindObjectOfType<UpgradeManager>();
+            _managerController = FindObjectOfType<ManagerController>();
+
+            // Create 4 content panels between HUD and nav
+            _businessPanel = CreateContentPanel(root, "BusinessPanel", hudHeight, navHeight);
+            _shopPanel      = CreateContentPanel(root, "ShopPanel",      hudHeight, navHeight);
+            _prestigePanel  = CreateContentPanel(root, "PrestigePanel",  hudHeight, navHeight);
+            _settingsPanel  = CreateContentPanel(root, "SettingsPanel",  hudHeight, navHeight);
+
+            BuildBusinessList(_businessPanel.transform);
+            BuildShopPanel(_shopPanel.transform);
+            BuildPrestigePanel(_prestigePanel.transform);
+            BuildSettingsPanel(_settingsPanel.transform);
+
             BuildBottomNav(root, navHeight);
-            BuildBusinessList(root, hudHeight, navHeight);
 
             SubscribeToEvents();
             RefreshAll();
+            SelectTab(0);
+        }
+
+        // ── Helper: panel that fills the area between HUD and nav ────────────
+
+        private GameObject CreateContentPanel(RectTransform root, string name,
+            float hudHeight, float navHeight)
+        {
+            GameObject panel = new GameObject(name);
+            panel.transform.SetParent(root, false);
+            RectTransform rt = panel.AddComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0, 0);
+            rt.anchorMax = new Vector2(1, 1);
+            rt.offsetMin = new Vector2(0,  navHeight);
+            rt.offsetMax = new Vector2(0, -hudHeight);
+            return panel;
+        }
+
+        // ── Tab switching ────────────────────────────────────────────────────
+
+        private void SelectTab(int index)
+        {
+            _activeTabIndex = index;
+            _businessPanel.SetActive(index == 0);
+            _shopPanel.SetActive(index == 1);
+            _prestigePanel.SetActive(index == 2);
+            _settingsPanel.SetActive(index == 3);
+
+            for (int i = 0; i < _tabButtons.Length; i++)
+            {
+                var img = _tabButtons[i].GetComponent<Image>();
+                img.color = (i == index) ? ColorAccent : ColorCard;
+            }
         }
 
         // ── Canvas ──────────────────────────────────────────────────────────
@@ -237,11 +323,17 @@ namespace IdleEmpire.UI
             layout.childForceExpandHeight = true;
 
             string[] labels = { "🏭 Business", "🛒 Shop", "⭐ Prestige", "⚙️ Settings" };
-            foreach (string label in labels)
-                CreateTabButton(panel.transform, label);
+            _tabButtons = new Button[labels.Length];
+            for (int i = 0; i < labels.Length; i++)
+            {
+                int capturedIndex = i;
+                Button btn = CreateTabButton(panel.transform, labels[i]);
+                btn.onClick.AddListener(() => SelectTab(capturedIndex));
+                _tabButtons[i] = btn;
+            }
         }
 
-        private void CreateTabButton(Transform parent, string label)
+        private Button CreateTabButton(Transform parent, string label)
         {
             GameObject go = new GameObject(label + "_Tab");
             go.transform.SetParent(parent, false);
@@ -264,20 +356,22 @@ namespace IdleEmpire.UI
             labelRT.anchorMax = Vector2.one;
             labelRT.offsetMin = Vector2.zero;
             labelRT.offsetMax = Vector2.zero;
+
+            return btn;
         }
 
         // ── Business List ────────────────────────────────────────────────────
 
-        private void BuildBusinessList(RectTransform root, float hudHeight, float navHeight)
+        private void BuildBusinessList(Transform panelTransform)
         {
-            // ScrollRect container
+            // ScrollRect container — fill the whole panel
             GameObject scrollGO = new GameObject("BusinessScroll");
-            scrollGO.transform.SetParent(root, false);
+            scrollGO.transform.SetParent(panelTransform, false);
             RectTransform scrollRT = scrollGO.AddComponent<RectTransform>();
-            scrollRT.anchorMin = new Vector2(0, 0);
-            scrollRT.anchorMax = new Vector2(1, 1);
-            scrollRT.offsetMin = new Vector2(0,  navHeight);
-            scrollRT.offsetMax = new Vector2(0, -hudHeight);
+            scrollRT.anchorMin = Vector2.zero;
+            scrollRT.anchorMax = Vector2.one;
+            scrollRT.offsetMin = Vector2.zero;
+            scrollRT.offsetMax = Vector2.zero;
 
             ScrollRect scroll = scrollGO.AddComponent<ScrollRect>();
             scroll.horizontal = false;
@@ -460,6 +554,614 @@ namespace IdleEmpire.UI
             UpdateBuyButton(refs, GameManager.Instance?.CurrencyManager?.GetMoney() ?? 0);
         }
 
+        // ── Shop Panel ───────────────────────────────────────────────────────
+
+        private void BuildShopPanel(Transform parent)
+        {
+            // ScrollRect fills the whole panel
+            GameObject scrollGO = new GameObject("ShopScroll");
+            scrollGO.transform.SetParent(parent, false);
+            RectTransform scrollRT = scrollGO.AddComponent<RectTransform>();
+            scrollRT.anchorMin = Vector2.zero;
+            scrollRT.anchorMax = Vector2.one;
+            scrollRT.offsetMin = Vector2.zero;
+            scrollRT.offsetMax = Vector2.zero;
+
+            ScrollRect scroll = scrollGO.AddComponent<ScrollRect>();
+            scroll.horizontal = false;
+            scroll.vertical   = true;
+
+            GameObject viewportGO = new GameObject("Viewport");
+            viewportGO.transform.SetParent(scrollGO.transform, false);
+            RectTransform viewportRT = viewportGO.AddComponent<RectTransform>();
+            viewportRT.anchorMin = Vector2.zero;
+            viewportRT.anchorMax = Vector2.one;
+            viewportRT.offsetMin = Vector2.zero;
+            viewportRT.offsetMax = Vector2.zero;
+            viewportGO.AddComponent<Image>().color = new Color(0, 0, 0, 0);
+            viewportGO.AddComponent<Mask>().showMaskGraphic = false;
+            scroll.viewport = viewportRT;
+
+            GameObject contentGO = new GameObject("Content");
+            contentGO.transform.SetParent(viewportGO.transform, false);
+            RectTransform contentRT = contentGO.AddComponent<RectTransform>();
+            contentRT.anchorMin = new Vector2(0, 1);
+            contentRT.anchorMax = new Vector2(1, 1);
+            contentRT.pivot     = new Vector2(0.5f, 1f);
+            contentRT.offsetMin = Vector2.zero;
+            contentRT.offsetMax = Vector2.zero;
+
+            VerticalLayoutGroup vlg = contentGO.AddComponent<VerticalLayoutGroup>();
+            vlg.childAlignment = TextAnchor.UpperCenter;
+            vlg.spacing = 8;
+            vlg.padding = new RectOffset(12, 12, 12, 12);
+            vlg.childForceExpandWidth  = true;
+            vlg.childForceExpandHeight = false;
+
+            contentGO.AddComponent<ContentSizeFitter>().verticalFit =
+                ContentSizeFitter.FitMode.PreferredSize;
+
+            scroll.content = contentRT;
+            _shopContent = contentGO.transform;
+
+            RebuildShopContent();
+        }
+
+        private void RebuildShopContent()
+        {
+            if (_shopContent == null) return;
+
+            foreach (Transform child in _shopContent)
+                Destroy(child.gameObject);
+            _shopItemCosts.Clear();
+
+            double balance = GameManager.Instance?.CurrencyManager?.GetMoney() ?? 0;
+
+            // ── Upgrades ─────────────────────────────────────────────────────
+            AddSectionHeader(_shopContent, "⬆️ Upgrades");
+
+            if (_upgradeManager != null)
+            {
+                int[] upgradeIndices = _upgradeManager.GetAvailableUpgradeIndices();
+                UpgradeData[] upgrades = _upgradeManager.GetAvailableUpgrades();
+
+                for (int i = 0; i < upgrades.Length; i++)
+                {
+                    int idx = upgradeIndices[i];
+                    AddShopUpgradeCard(_shopContent, upgrades[i], idx, balance);
+                }
+            }
+
+            // ── Managers ─────────────────────────────────────────────────────
+            AddSectionHeader(_shopContent, "👔 Managers");
+
+            if (_managerController != null)
+            {
+                ManagerData[] managers = _managerController.GetAllManagers();
+                for (int i = 0; i < managers.Length; i++)
+                {
+                    bool isHired = _managerController.IsManagerHired(i);
+                    AddShopManagerCard(_shopContent, managers[i], i, isHired, balance);
+                }
+            }
+        }
+
+        private void AddSectionHeader(Transform parent, string title)
+        {
+            GameObject go = new GameObject("SectionHeader");
+            go.transform.SetParent(parent, false);
+
+            LayoutElement le = go.AddComponent<LayoutElement>();
+            le.minHeight       = 50f;
+            le.preferredHeight = 50f;
+
+            go.AddComponent<Image>().color = ColorPanel;
+
+            TextMeshProUGUI text = CreateTMPText(go.transform, "HeaderText", title, 26,
+                ColorText, TextAlignmentOptions.Left, bold: true);
+            RectTransform rt = text.GetComponent<RectTransform>();
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = new Vector2(16, 0);
+            rt.offsetMax = Vector2.zero;
+        }
+
+        private void AddShopUpgradeCard(Transform parent, UpgradeData upgrade, int index,
+            double balance)
+        {
+            const float cardHeight = 130f;
+
+            GameObject card = new GameObject("UpgradeCard_" + index);
+            card.transform.SetParent(parent, false);
+
+            LayoutElement le = card.AddComponent<LayoutElement>();
+            le.minHeight       = cardHeight;
+            le.preferredHeight = cardHeight;
+
+            card.AddComponent<Image>().color = ColorCard;
+
+            // Name
+            TextMeshProUGUI nameText = CreateTMPText(card.transform, "Name",
+                upgrade.UpgradeName, 24, ColorText, TextAlignmentOptions.Left, bold: true);
+            RectTransform nameRT = nameText.GetComponent<RectTransform>();
+            nameRT.anchorMin = new Vector2(0, 0.65f);
+            nameRT.anchorMax = new Vector2(0.7f, 1f);
+            nameRT.offsetMin = new Vector2(12, 0);
+            nameRT.offsetMax = new Vector2(0, -6);
+
+            // Description
+            TextMeshProUGUI descText = CreateTMPText(card.transform, "Desc",
+                upgrade.Description, 18, ColorMuted, TextAlignmentOptions.Left);
+            descText.enableWordWrapping = true;
+            descText.overflowMode = TextOverflowModes.Truncate;
+            RectTransform descRT = descText.GetComponent<RectTransform>();
+            descRT.anchorMin = new Vector2(0, 0.35f);
+            descRT.anchorMax = new Vector2(0.7f, 0.65f);
+            descRT.offsetMin = new Vector2(12, 0);
+            descRT.offsetMax = Vector2.zero;
+
+            // Cost + Multiplier
+            string costStr = $"{NumberFormatter.FormatNumber(upgrade.Cost)}  x{upgrade.Multiplier:F1}";
+            TextMeshProUGUI costText = CreateTMPText(card.transform, "Cost",
+                costStr, 20, ColorMoney, TextAlignmentOptions.Left);
+            RectTransform costRT = costText.GetComponent<RectTransform>();
+            costRT.anchorMin = new Vector2(0, 0f);
+            costRT.anchorMax = new Vector2(0.7f, 0.35f);
+            costRT.offsetMin = new Vector2(12, 0);
+            costRT.offsetMax = Vector2.zero;
+
+            // BUY button
+            GameObject buyGO = CreateButton(card.transform, "BUY", ColorIncome,
+                ColorBackground, 100, 50);
+            RectTransform buyRT = buyGO.GetComponent<RectTransform>();
+            buyRT.anchorMin = new Vector2(0.72f, 0.15f);
+            buyRT.anchorMax = new Vector2(1f, 0.85f);
+            buyRT.offsetMin = Vector2.zero;
+            buyRT.offsetMax = new Vector2(-12, 0);
+
+            Button buyBtn = buyGO.GetComponent<Button>();
+            int capturedIndex = index;
+            UpgradeManager capturedUM = _upgradeManager;
+            buyBtn.onClick.AddListener(() => capturedUM.PurchaseUpgrade(capturedIndex));
+            buyBtn.interactable = balance >= upgrade.Cost;
+
+            _shopItemCosts.Add(new ShopItemRef { Btn = buyBtn, Cost = upgrade.Cost });
+        }
+
+        private void AddShopManagerCard(Transform parent, ManagerData manager, int index,
+            bool isHired, double balance)
+        {
+            const float cardHeight = 130f;
+
+            GameObject card = new GameObject("ManagerCard_" + index);
+            card.transform.SetParent(parent, false);
+
+            LayoutElement le = card.AddComponent<LayoutElement>();
+            le.minHeight       = cardHeight;
+            le.preferredHeight = cardHeight;
+
+            card.AddComponent<Image>().color = ColorCard;
+
+            // Name
+            TextMeshProUGUI nameText = CreateTMPText(card.transform, "Name",
+                manager.ManagerName, 24, ColorText, TextAlignmentOptions.Left, bold: true);
+            RectTransform nameRT = nameText.GetComponent<RectTransform>();
+            nameRT.anchorMin = new Vector2(0, 0.65f);
+            nameRT.anchorMax = new Vector2(0.7f, 1f);
+            nameRT.offsetMin = new Vector2(12, 0);
+            nameRT.offsetMax = new Vector2(0, -6);
+
+            // Description
+            TextMeshProUGUI descText = CreateTMPText(card.transform, "Desc",
+                manager.Description, 18, ColorMuted, TextAlignmentOptions.Left);
+            descText.enableWordWrapping = true;
+            descText.overflowMode = TextOverflowModes.Truncate;
+            RectTransform descRT = descText.GetComponent<RectTransform>();
+            descRT.anchorMin = new Vector2(0, 0.35f);
+            descRT.anchorMax = new Vector2(0.7f, 0.65f);
+            descRT.offsetMin = new Vector2(12, 0);
+            descRT.offsetMax = Vector2.zero;
+
+            // Cost
+            TextMeshProUGUI costText = CreateTMPText(card.transform, "Cost",
+                NumberFormatter.FormatNumber(manager.Cost), 20, ColorMoney,
+                TextAlignmentOptions.Left);
+            RectTransform costRT = costText.GetComponent<RectTransform>();
+            costRT.anchorMin = new Vector2(0, 0f);
+            costRT.anchorMax = new Vector2(0.7f, 0.35f);
+            costRT.offsetMin = new Vector2(12, 0);
+            costRT.offsetMax = Vector2.zero;
+
+            if (isHired)
+            {
+                TextMeshProUGUI hiredText = CreateTMPText(card.transform, "Hired",
+                    "✅ Hired", 22, ColorIncome, TextAlignmentOptions.Center, bold: true);
+                RectTransform hiredRT = hiredText.GetComponent<RectTransform>();
+                hiredRT.anchorMin = new Vector2(0.72f, 0.15f);
+                hiredRT.anchorMax = new Vector2(1f, 0.85f);
+                hiredRT.offsetMin = Vector2.zero;
+                hiredRT.offsetMax = new Vector2(-12, 0);
+            }
+            else
+            {
+                GameObject hireGO = CreateButton(card.transform, "HIRE", ColorAccent,
+                    ColorText, 100, 50);
+                RectTransform hireRT = hireGO.GetComponent<RectTransform>();
+                hireRT.anchorMin = new Vector2(0.72f, 0.15f);
+                hireRT.anchorMax = new Vector2(1f, 0.85f);
+                hireRT.offsetMin = Vector2.zero;
+                hireRT.offsetMax = new Vector2(-12, 0);
+
+                Button hireBtn = hireGO.GetComponent<Button>();
+                int capturedIndex = index;
+                ManagerController capturedMC = _managerController;
+                hireBtn.onClick.AddListener(() => capturedMC.HireManager(capturedIndex));
+                hireBtn.interactable = balance >= manager.Cost;
+
+                _shopItemCosts.Add(new ShopItemRef { Btn = hireBtn, Cost = manager.Cost });
+            }
+        }
+
+        // ── Prestige Panel ───────────────────────────────────────────────────
+
+        private void BuildPrestigePanel(Transform parent)
+        {
+            // Scroll view for safe display on all screen sizes
+            GameObject scrollGO = new GameObject("PrestigeScroll");
+            scrollGO.transform.SetParent(parent, false);
+            RectTransform scrollRT = scrollGO.AddComponent<RectTransform>();
+            scrollRT.anchorMin = Vector2.zero;
+            scrollRT.anchorMax = Vector2.one;
+            scrollRT.offsetMin = Vector2.zero;
+            scrollRT.offsetMax = Vector2.zero;
+
+            ScrollRect scroll = scrollGO.AddComponent<ScrollRect>();
+            scroll.horizontal = false;
+            scroll.vertical   = true;
+
+            GameObject viewportGO = new GameObject("Viewport");
+            viewportGO.transform.SetParent(scrollGO.transform, false);
+            RectTransform viewportRT = viewportGO.AddComponent<RectTransform>();
+            viewportRT.anchorMin = Vector2.zero;
+            viewportRT.anchorMax = Vector2.one;
+            viewportRT.offsetMin = Vector2.zero;
+            viewportRT.offsetMax = Vector2.zero;
+            viewportGO.AddComponent<Image>().color = new Color(0, 0, 0, 0);
+            viewportGO.AddComponent<Mask>().showMaskGraphic = false;
+            scroll.viewport = viewportRT;
+
+            GameObject contentGO = new GameObject("Content");
+            contentGO.transform.SetParent(viewportGO.transform, false);
+            RectTransform contentRT = contentGO.AddComponent<RectTransform>();
+            contentRT.anchorMin = new Vector2(0, 1);
+            contentRT.anchorMax = new Vector2(1, 1);
+            contentRT.pivot     = new Vector2(0.5f, 1f);
+            contentRT.offsetMin = Vector2.zero;
+            contentRT.offsetMax = Vector2.zero;
+
+            VerticalLayoutGroup vlg = contentGO.AddComponent<VerticalLayoutGroup>();
+            vlg.childAlignment = TextAnchor.UpperCenter;
+            vlg.spacing = 24;
+            vlg.padding = new RectOffset(24, 24, 32, 32);
+            vlg.childForceExpandWidth  = true;
+            vlg.childForceExpandHeight = false;
+
+            contentGO.AddComponent<ContentSizeFitter>().verticalFit =
+                ContentSizeFitter.FitMode.PreferredSize;
+
+            scroll.content = contentRT;
+
+            Transform content = contentGO.transform;
+
+            // Title
+            AddLayoutText(content, "Title", "⭐ Prestige", 44, ColorMoney,
+                bold: true, height: 80, alignment: TextAlignmentOptions.Center);
+
+            // Current multiplier (read from save data)
+            var saveData = GameManager.Instance?.SaveManager?.Load();
+            float currentMultiplier = (float)(saveData?.prestigeMultiplier ?? 1.0);
+
+            AddLayoutText(content, "CurrentMult",
+                $"Current Multiplier: x{currentMultiplier:F1}", 28, ColorText,
+                height: 50, alignment: TextAlignmentOptions.Center);
+
+            AddLayoutText(content, "PotentialBonus",
+                $"After Prestige: x{(currentMultiplier + 0.5f):F1}", 28, ColorIncome,
+                height: 50, alignment: TextAlignmentOptions.Center);
+
+            TextMeshProUGUI descTMP = AddLayoutText(content, "Desc",
+                "Prestige resets all businesses and money but grants a permanent\n" +
+                "income multiplier (+0.5x per prestige).\n\n" +
+                "Requires at least $1,000,000/s income.",
+                22, ColorMuted, height: 110, alignment: TextAlignmentOptions.Center);
+            descTMP.enableWordWrapping = true;
+
+            // PRESTIGE RESET button
+            GameObject prestigeBtnGO = CreateButton(content, "PRESTIGE RESET",
+                ColorAccent, ColorText, 300, 80);
+            LayoutElement prestigeLE = prestigeBtnGO.AddComponent<LayoutElement>();
+            prestigeLE.minHeight       = 80f;
+            prestigeLE.preferredHeight = 80f;
+
+            _prestigeActionBtn = prestigeBtnGO.GetComponent<Button>();
+
+            // Confirmation panel (absolutely positioned over the prestige panel)
+            GameObject confirmPanel = new GameObject("ConfirmPanel");
+            confirmPanel.transform.SetParent(parent, false);
+            RectTransform confirmRT = confirmPanel.AddComponent<RectTransform>();
+            confirmRT.anchorMin = new Vector2(0.05f, 0.25f);
+            confirmRT.anchorMax = new Vector2(0.95f, 0.75f);
+            confirmRT.offsetMin = Vector2.zero;
+            confirmRT.offsetMax = Vector2.zero;
+            confirmPanel.AddComponent<Image>().color = ColorPanel;
+            Outline confirmOutline = confirmPanel.AddComponent<Outline>();
+            confirmOutline.effectColor    = ColorAccent;
+            confirmOutline.effectDistance = new Vector2(2, 2);
+            confirmPanel.SetActive(false);
+
+            VerticalLayoutGroup confirmVLG = confirmPanel.AddComponent<VerticalLayoutGroup>();
+            confirmVLG.childAlignment = TextAnchor.MiddleCenter;
+            confirmVLG.spacing = 20;
+            confirmVLG.padding = new RectOffset(24, 24, 24, 24);
+            confirmVLG.childForceExpandWidth  = true;
+            confirmVLG.childForceExpandHeight = false;
+
+            TextMeshProUGUI sureTMP = AddLayoutText(confirmPanel.transform, "AreYouSure",
+                "Are you sure?\nThis will reset ALL progress!", 26, ColorText,
+                bold: true, height: 90, alignment: TextAlignmentOptions.Center);
+            sureTMP.enableWordWrapping = true;
+
+            GameObject confirmBtnGO = CreateButton(confirmPanel.transform,
+                "✓ Confirm Prestige", ColorAccent, ColorText, 260, 70);
+            LayoutElement confirmBtnLE = confirmBtnGO.AddComponent<LayoutElement>();
+            confirmBtnLE.minHeight       = 70f;
+            confirmBtnLE.preferredHeight = 70f;
+            confirmBtnGO.GetComponent<Button>().onClick.AddListener(() =>
+            {
+                confirmPanel.SetActive(false);
+                GameManager.Instance?.PrestigeReset();
+            });
+
+            GameObject cancelBtnGO = CreateButton(confirmPanel.transform,
+                "✗ Cancel", ColorCard, ColorText, 200, 60);
+            LayoutElement cancelBtnLE = cancelBtnGO.AddComponent<LayoutElement>();
+            cancelBtnLE.minHeight       = 60f;
+            cancelBtnLE.preferredHeight = 60f;
+            cancelBtnGO.GetComponent<Button>().onClick.AddListener(
+                () => confirmPanel.SetActive(false));
+
+            // Wire main prestige button to show confirm panel
+            _prestigeActionBtn.onClick.AddListener(() => confirmPanel.SetActive(true));
+
+            UpdatePrestigeButton();
+        }
+
+        private void UpdatePrestigeButton()
+        {
+            if (_prestigeActionBtn == null) return;
+            double ips = GameManager.Instance?.CurrencyManager?.GetIncomePerSecond() ?? 0;
+            _prestigeActionBtn.interactable = ips >= 1_000_000;
+        }
+
+        // ── Settings Panel ───────────────────────────────────────────────────
+
+        private void BuildSettingsPanel(Transform parent)
+        {
+            // Scroll view
+            GameObject scrollGO = new GameObject("SettingsScroll");
+            scrollGO.transform.SetParent(parent, false);
+            RectTransform scrollRT = scrollGO.AddComponent<RectTransform>();
+            scrollRT.anchorMin = Vector2.zero;
+            scrollRT.anchorMax = Vector2.one;
+            scrollRT.offsetMin = Vector2.zero;
+            scrollRT.offsetMax = Vector2.zero;
+
+            ScrollRect scroll = scrollGO.AddComponent<ScrollRect>();
+            scroll.horizontal = false;
+            scroll.vertical   = true;
+
+            GameObject viewportGO = new GameObject("Viewport");
+            viewportGO.transform.SetParent(scrollGO.transform, false);
+            RectTransform viewportRT = viewportGO.AddComponent<RectTransform>();
+            viewportRT.anchorMin = Vector2.zero;
+            viewportRT.anchorMax = Vector2.one;
+            viewportRT.offsetMin = Vector2.zero;
+            viewportRT.offsetMax = Vector2.zero;
+            viewportGO.AddComponent<Image>().color = new Color(0, 0, 0, 0);
+            viewportGO.AddComponent<Mask>().showMaskGraphic = false;
+            scroll.viewport = viewportRT;
+
+            GameObject contentGO = new GameObject("Content");
+            contentGO.transform.SetParent(viewportGO.transform, false);
+            RectTransform contentRT = contentGO.AddComponent<RectTransform>();
+            contentRT.anchorMin = new Vector2(0, 1);
+            contentRT.anchorMax = new Vector2(1, 1);
+            contentRT.pivot     = new Vector2(0.5f, 1f);
+            contentRT.offsetMin = Vector2.zero;
+            contentRT.offsetMax = Vector2.zero;
+
+            VerticalLayoutGroup vlg = contentGO.AddComponent<VerticalLayoutGroup>();
+            vlg.childAlignment = TextAnchor.UpperCenter;
+            vlg.spacing = 16;
+            vlg.padding = new RectOffset(20, 20, 24, 24);
+            vlg.childForceExpandWidth  = true;
+            vlg.childForceExpandHeight = false;
+
+            contentGO.AddComponent<ContentSizeFitter>().verticalFit =
+                ContentSizeFitter.FitMode.PreferredSize;
+
+            scroll.content = contentRT;
+
+            Transform content = contentGO.transform;
+
+            // Title
+            AddLayoutText(content, "Title", "⚙️ Settings", 44, ColorText,
+                bold: true, height: 80, alignment: TextAlignmentOptions.Center);
+
+            // Audio toggles
+            bool musicOn = AudioManager.Instance?.IsMusicEnabled ?? true;
+            bool sfxOn   = AudioManager.Instance?.IsSfxEnabled   ?? true;
+
+            BuildToggleRow(content, "Music", "🎵 Music", musicOn,
+                enabled => AudioManager.Instance?.ToggleMusic(enabled));
+
+            BuildToggleRow(content, "SFX", "🔊 SFX", sfxOn,
+                enabled => AudioManager.Instance?.ToggleSfx(enabled));
+
+            // Save button
+            GameObject saveBtnGO = CreateButton(content, "💾 Save Game",
+                ColorIncome, ColorBackground, 300, 70);
+            LayoutElement saveLE = saveBtnGO.AddComponent<LayoutElement>();
+            saveLE.minHeight       = 70f;
+            saveLE.preferredHeight = 70f;
+            saveBtnGO.GetComponent<Button>().onClick.AddListener(
+                () => GameManager.Instance?.SaveGame());
+
+            // Reset progress button
+            GameObject resetBtnGO = CreateButton(content, "⚠️ Reset Progress",
+                ColorAccent, ColorText, 300, 70);
+            LayoutElement resetLE = resetBtnGO.AddComponent<LayoutElement>();
+            resetLE.minHeight       = 70f;
+            resetLE.preferredHeight = 70f;
+
+            // Reset confirmation panel (absolutely positioned over settings panel)
+            GameObject resetConfirm = new GameObject("ResetConfirmPanel");
+            resetConfirm.transform.SetParent(parent, false);
+            RectTransform resetConfirmRT = resetConfirm.AddComponent<RectTransform>();
+            resetConfirmRT.anchorMin = new Vector2(0.05f, 0.25f);
+            resetConfirmRT.anchorMax = new Vector2(0.95f, 0.75f);
+            resetConfirmRT.offsetMin = Vector2.zero;
+            resetConfirmRT.offsetMax = Vector2.zero;
+            resetConfirm.AddComponent<Image>().color = ColorPanel;
+            Outline resetOutline = resetConfirm.AddComponent<Outline>();
+            resetOutline.effectColor    = ColorAccent;
+            resetOutline.effectDistance = new Vector2(2, 2);
+            resetConfirm.SetActive(false);
+
+            VerticalLayoutGroup resetVLG = resetConfirm.AddComponent<VerticalLayoutGroup>();
+            resetVLG.childAlignment = TextAnchor.MiddleCenter;
+            resetVLG.spacing = 20;
+            resetVLG.padding = new RectOffset(24, 24, 24, 24);
+            resetVLG.childForceExpandWidth  = true;
+            resetVLG.childForceExpandHeight = false;
+
+            TextMeshProUGUI resetSureTMP = AddLayoutText(resetConfirm.transform, "ResetSure",
+                "Reset ALL progress?\nThis cannot be undone!", 26, ColorText,
+                bold: true, height: 90, alignment: TextAlignmentOptions.Center);
+            resetSureTMP.enableWordWrapping = true;
+
+            GameObject resetConfirmBtnGO = CreateButton(resetConfirm.transform,
+                "✓ Confirm Reset", ColorAccent, ColorText, 260, 70);
+            LayoutElement rcLE = resetConfirmBtnGO.AddComponent<LayoutElement>();
+            rcLE.minHeight       = 70f;
+            rcLE.preferredHeight = 70f;
+            resetConfirmBtnGO.GetComponent<Button>().onClick.AddListener(() =>
+            {
+                resetConfirm.SetActive(false);
+                GameManager.Instance?.SaveManager?.DeleteSave();
+                SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+            });
+
+            GameObject resetCancelBtnGO = CreateButton(resetConfirm.transform,
+                "✗ Cancel", ColorCard, ColorText, 200, 60);
+            LayoutElement rcCancelLE = resetCancelBtnGO.AddComponent<LayoutElement>();
+            rcCancelLE.minHeight       = 60f;
+            rcCancelLE.preferredHeight = 60f;
+            resetCancelBtnGO.GetComponent<Button>().onClick.AddListener(
+                () => resetConfirm.SetActive(false));
+
+            resetBtnGO.GetComponent<Button>().onClick.AddListener(
+                () => resetConfirm.SetActive(true));
+
+            // Version
+            AddLayoutText(content, "Version",
+                $"v{Application.version}", 20, ColorMuted,
+                height: 40, alignment: TextAlignmentOptions.Center);
+        }
+
+        private void BuildToggleRow(Transform parent, string id, string label,
+            bool initialValue, Action<bool> onToggle)
+        {
+            GameObject row = new GameObject(id + "_Row");
+            row.transform.SetParent(parent, false);
+
+            LayoutElement le = row.AddComponent<LayoutElement>();
+            le.minHeight       = 70f;
+            le.preferredHeight = 70f;
+
+            row.AddComponent<Image>().color = ColorCard;
+
+            TextMeshProUGUI labelTMP = CreateTMPText(row.transform, "Label", label,
+                26, ColorText, TextAlignmentOptions.Left);
+            RectTransform labelRT = labelTMP.GetComponent<RectTransform>();
+            labelRT.anchorMin = new Vector2(0, 0);
+            labelRT.anchorMax = new Vector2(0.7f, 1f);
+            labelRT.offsetMin = new Vector2(16, 0);
+            labelRT.offsetMax = Vector2.zero;
+
+            bool[] state = { initialValue };
+            Color  onColor  = ColorIncome;
+            Color  offColor = ColorMuted;
+
+            string onLabel  = "ON";
+            string offLabel = "OFF";
+
+            Color  initialColor = state[0] ? onColor : offColor;
+            string initialLabel = state[0] ? onLabel  : offLabel;
+
+            GameObject btnGO = CreateButton(row.transform, initialLabel, initialColor,
+                ColorBackground, 100, 50);
+            RectTransform btnRT = btnGO.GetComponent<RectTransform>();
+            btnRT.anchorMin = new Vector2(0.72f, 0.15f);
+            btnRT.anchorMax = new Vector2(1f, 0.85f);
+            btnRT.offsetMin = Vector2.zero;
+            btnRT.offsetMax = new Vector2(-16, 0);
+
+            Image btnImg        = btnGO.GetComponent<Image>();
+            TextMeshProUGUI btnTMP = btnGO.GetComponentInChildren<TextMeshProUGUI>();
+            Button btn          = btnGO.GetComponent<Button>();
+
+            btn.onClick.AddListener(() =>
+            {
+                state[0] = !state[0];
+                onToggle?.Invoke(state[0]);
+                btnImg.color = state[0] ? onColor : offColor;
+                if (btnTMP != null)
+                    btnTMP.text = state[0] ? onLabel : offLabel;
+            });
+        }
+
+        // ── Layout text helper ───────────────────────────────────────────────
+
+        private TextMeshProUGUI AddLayoutText(Transform parent, string goName, string content,
+            int fontSize, Color color, bool bold = false, float height = 40,
+            TextAlignmentOptions alignment = TextAlignmentOptions.Center)
+        {
+            GameObject go = new GameObject(goName);
+            go.transform.SetParent(parent, false);
+
+            LayoutElement le = go.AddComponent<LayoutElement>();
+            le.minHeight       = height;
+            le.preferredHeight = height;
+
+            TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
+            tmp.text      = content;
+            tmp.fontSize  = fontSize;
+            tmp.color     = color;
+            tmp.alignment = alignment;
+            tmp.fontStyle = bold ? FontStyles.Bold : FontStyles.Normal;
+            tmp.enableWordWrapping = false;
+            tmp.overflowMode = TextOverflowModes.Ellipsis;
+
+            TMP_FontAsset font = TMP_Settings.defaultFontAsset;
+            if (font == null)
+                font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
+            if (font != null)
+                tmp.font = font;
+
+            return tmp;
+        }
+
         #endregion
 
         #region Event Subscriptions
@@ -476,6 +1178,16 @@ namespace IdleEmpire.UI
                 refs.Controller.OnLevelChanged  += OnLevelChanged;
                 refs.Controller.OnCycleProgress += OnCycleProgress;
             }
+
+            // _upgradeManager and _managerController already set in BuildUI
+            if (_upgradeManager != null)
+                _upgradeManager.OnUpgradesChanged += OnShopDataChanged;
+
+            if (_managerController != null)
+                _managerController.OnManagersChanged += OnShopDataChanged;
+
+            if (GameManager.Instance != null)
+                GameManager.Instance.OnPrestigeReset += OnPrestigeResetHandler;
         }
 
         private void OnMoneyChanged(double newBalance)
@@ -485,6 +1197,11 @@ namespace IdleEmpire.UI
 
             foreach (var refs in _cardRefs)
                 UpdateBuyButton(refs, newBalance);
+
+            // Update shop button affordability
+            foreach (var item in _shopItemCosts)
+                if (item.Btn != null)
+                    item.Btn.interactable = newBalance >= item.Cost;
         }
 
         private void OnLevelChanged(BusinessController bc)
@@ -509,6 +1226,17 @@ namespace IdleEmpire.UI
             var refs = _cardRefs.Find(r => r.Controller == bc);
             if (refs?.ProgressFill != null)
                 refs.ProgressFill.fillAmount = progress;
+        }
+
+        private void OnShopDataChanged()
+        {
+            RebuildShopContent();
+        }
+
+        private void OnPrestigeResetHandler()
+        {
+            RebuildShopContent();
+            UpdatePrestigeButton();
         }
 
         #endregion
@@ -536,6 +1264,7 @@ namespace IdleEmpire.UI
             if (_incomeText == null) return;
             double ips = GameManager.Instance?.CurrencyManager?.GetIncomePerSecond() ?? 0;
             _incomeText.text = $"{NumberFormatter.FormatNumber(ips)}/s";
+            UpdatePrestigeButton();
         }
 
         private void UpdateBuyButton(BusinessCardRefs refs, double balance)
