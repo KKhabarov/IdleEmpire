@@ -30,6 +30,30 @@ namespace IdleEmpire.Core
 
         /// <summary>Whether the player has completed or skipped the tutorial.</summary>
         public bool tutorialCompleted;
+
+        /// <summary>Indices of unlocked achievements.</summary>
+        public int[] unlockedAchievementIndices = Array.Empty<int>();
+
+        /// <summary>Total money earned across all time (lifetime earnings, survives prestige).</summary>
+        public double totalMoneyEarned;
+
+        /// <summary>Number of prestige resets performed.</summary>
+        public int prestigeCount;
+
+        /// <summary>Total money spent across all time.</summary>
+        public double totalMoneySpent;
+
+        /// <summary>Total business level-ups performed.</summary>
+        public int totalBusinessesPurchased;
+
+        /// <summary>Total manual income collections.</summary>
+        public int totalIncomeCollections;
+
+        /// <summary>Highest income per second ever achieved.</summary>
+        public double highestIncomePerSecond;
+
+        /// <summary>Total play time in seconds.</summary>
+        public float totalPlayTimeSeconds;
     }
 
     /// <summary>
