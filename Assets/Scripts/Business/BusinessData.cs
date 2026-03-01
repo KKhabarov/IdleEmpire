@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace IdleEmpire.Business
@@ -6,7 +7,7 @@ namespace IdleEmpire.Business
     /// ScriptableObject that holds the static configuration data for a single business type.
     /// Create instances via Assets → Create → IdleEmpire → Business Data.
     /// </summary>
-    [CreateAssetMenu(menuName = "IdleEmpire/Business Data", fileName = "NewBusinessData")]
+    [CreateAssetMenu(fileName = "NewBusiness", menuName = "IdleEmpire/Business Data")]
     public class BusinessData : ScriptableObject
     {
         #region Inspector Fields
@@ -23,11 +24,11 @@ namespace IdleEmpire.Business
         [Tooltip("Base income produced per collection cycle at level 1.")]
         [SerializeField] private double _baseIncome = 1.0;
 
+        [Tooltip("Seconds per income cycle (default 1).")]
+        [SerializeField] private float _cycleDuration = 1f;
+
         [Tooltip("Multiplier applied to cost for each subsequent level. Default: 1.15")]
         [SerializeField] private float _costMultiplier = 1.15f;
-
-        [Tooltip("Seconds between automatic income collections when a manager is assigned.")]
-        [SerializeField] private float _collectionInterval = 5f;
 
         #endregion
 
@@ -48,25 +49,36 @@ namespace IdleEmpire.Business
         /// <summary>Base income value before level or prestige scaling.</summary>
         public double BaseIncome => _baseIncome;
 
-        /// <summary>Cost scaling multiplier per level (e.g. 1.15 = 15 % more expensive each level).</summary>
-        public float CostMultiplier => _costMultiplier;
+        /// <summary>Seconds between income collections per cycle (default 1).</summary>
+        public float CycleDuration => _cycleDuration;
 
-        /// <summary>Seconds between income collections when a manager is assigned.</summary>
-        public float CollectionInterval => _collectionInterval;
+        /// <summary>Cost scaling multiplier per level (e.g. 1.15 = 15% more expensive each level).</summary>
+        public float CostMultiplier => _costMultiplier;
 
         #endregion
 
-        #region Cost Formula
+        #region Methods
 
         /// <summary>
-        /// Calculates the cost to reach the next level from <paramref name="currentLevel"/>.
-        /// Formula: <c>BaseCost * CostMultiplier ^ currentLevel</c>
+        /// Calculates the cost to purchase or upgrade to the next level.
+        /// Formula: <c>baseCost * costMultiplier ^ level</c>
         /// </summary>
-        /// <param name="currentLevel">The business's current level.</param>
+        /// <param name="level">The business's current level.</param>
         /// <returns>Cost in game currency (double).</returns>
-        public double CalculateCost(int currentLevel)
+        public double GetCostForLevel(int level)
         {
-            return _baseCost * System.Math.Pow(_costMultiplier, currentLevel);
+            return _baseCost * Math.Pow(_costMultiplier, level);
+        }
+
+        /// <summary>
+        /// Calculates the income per cycle at the given level.
+        /// Formula: <c>baseIncome * level</c>
+        /// </summary>
+        /// <param name="level">The business's current level.</param>
+        /// <returns>Income per cycle (double).</returns>
+        public double GetIncomeForLevel(int level)
+        {
+            return _baseIncome * level;
         }
 
         #endregion

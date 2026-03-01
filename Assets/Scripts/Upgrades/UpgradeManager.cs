@@ -39,10 +39,13 @@ namespace IdleEmpire.Upgrades
         {
             // Restore purchased upgrades from save data.
             var saveData = GameManager.Instance?.SaveManager?.Load();
-            if (saveData?.purchasedUpgradeIndices != null)
+            if (saveData?.upgradesPurchased != null)
             {
-                foreach (int idx in saveData.purchasedUpgradeIndices)
-                    RestoreUpgrade(idx);
+                for (int i = 0; i < saveData.upgradesPurchased.Length; i++)
+                {
+                    if (saveData.upgradesPurchased[i])
+                        RestoreUpgrade(i);
+                }
             }
         }
 
@@ -132,6 +135,20 @@ namespace IdleEmpire.Upgrades
             return arr;
         }
 
+        /// <summary>
+        /// Returns a bool array where each index corresponds to an upgrade and <c>true</c> means it was purchased.
+        /// Used by <see cref="Core.GameManager"/> to populate <see cref="Core.SaveData.upgradesPurchased"/>.
+        /// </summary>
+        public bool[] GetPurchasedArray()
+        {
+            if (_allUpgrades == null) return Array.Empty<bool>();
+            bool[] result = new bool[_allUpgrades.Length];
+            foreach (int idx in _purchasedIndices)
+                if (idx < result.Length)
+                    result[idx] = true;
+            return result;
+        }
+
         #endregion
 
         #region Helpers
@@ -146,11 +163,11 @@ namespace IdleEmpire.Upgrades
             {
                 // Global upgrade — apply to all businesses.
                 foreach (var business in _businesses)
-                    business.ApplyUpgradeMultiplier(upgrade.Multiplier);
+                    business.ApplyMultiplier(upgrade.Multiplier);
             }
             else if (target >= 0 && target < _businesses.Length)
             {
-                _businesses[target].ApplyUpgradeMultiplier(upgrade.Multiplier);
+                _businesses[target].ApplyMultiplier(upgrade.Multiplier);
             }
             else
             {

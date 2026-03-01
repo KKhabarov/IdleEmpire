@@ -17,16 +17,16 @@ namespace IdleEmpire.Core
         public int[] businessLevels = Array.Empty<int>();
 
         /// <summary>Whether each business has an active manager hired.</summary>
-        public bool[] managerStates = Array.Empty<bool>();
+        public bool[] managersHired = Array.Empty<bool>();
 
-        /// <summary>Unix timestamp (UTC seconds) of the last save — used for offline earnings.</summary>
-        public long lastSaveTimestamp;
+        /// <summary>Which upgrades have been purchased (index = upgrade index, value = purchased).</summary>
+        public bool[] upgradesPurchased = Array.Empty<bool>();
 
         /// <summary>Active prestige multiplier (1.0 = no prestige yet).</summary>
-        public float prestigeMultiplier = 1f;
+        public double prestigeMultiplier = 1.0;
 
-        /// <summary>Indices of upgrades that have already been purchased.</summary>
-        public int[] purchasedUpgradeIndices = Array.Empty<int>();
+        /// <summary>ISO 8601 UTC timestamp of the last save — used for offline earnings.</summary>
+        public string lastSaveTime;
     }
 
     /// <summary>
@@ -55,26 +55,26 @@ namespace IdleEmpire.Core
                 return;
             }
 
-            data.lastSaveTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            data.lastSaveTime = DateTime.UtcNow.ToString("O");
 
             string json = JsonUtility.ToJson(data, prettyPrint: false);
             PlayerPrefs.SetString(SaveKey, json);
             PlayerPrefs.Save();
 
-            Debug.Log($"[SaveManager] Game saved. Timestamp: {data.lastSaveTimestamp}");
+            Debug.Log($"[SaveManager] Game saved. Time: {data.lastSaveTime}");
         }
 
         /// <summary>
         /// Loads the game state from <c>PlayerPrefs</c>.
-        /// Returns a default <see cref="SaveData"/> if no save exists.
+        /// Returns <c>null</c> if no save exists or deserialization fails.
         /// </summary>
-        /// <returns>Deserialized <see cref="SaveData"/>.</returns>
+        /// <returns>Deserialized <see cref="SaveData"/>, or <c>null</c> if no save found.</returns>
         public SaveData Load()
         {
-            if (!PlayerPrefs.HasKey(SaveKey))
+            if (!HasSave())
             {
-                Debug.Log("[SaveManager] No save found. Returning default SaveData.");
-                return CreateDefaultSaveData();
+                Debug.Log("[SaveManager] No save found.");
+                return null;
             }
 
             string json = PlayerPrefs.GetString(SaveKey);
@@ -84,8 +84,8 @@ namespace IdleEmpire.Core
                 SaveData data = JsonUtility.FromJson<SaveData>(json);
                 if (data == null)
                 {
-                    Debug.LogWarning("[SaveManager] Deserialization returned null. Returning default.");
-                    return CreateDefaultSaveData();
+                    Debug.LogWarning("[SaveManager] Deserialization returned null.");
+                    return null;
                 }
 
                 Debug.Log("[SaveManager] Game loaded successfully.");
@@ -94,7 +94,7 @@ namespace IdleEmpire.Core
             catch (Exception ex)
             {
                 Debug.LogError($"[SaveManager] Failed to deserialize save data: {ex.Message}");
-                return CreateDefaultSaveData();
+                return null;
             }
         }
 
@@ -109,22 +109,10 @@ namespace IdleEmpire.Core
             Debug.Log("[SaveManager] Save data deleted.");
         }
 
-        #endregion
-
-        #region Helpers
-
-        private SaveData CreateDefaultSaveData()
-        {
-            return new SaveData
-            {
-                money = 0,
-                businessLevels = Array.Empty<int>(),
-                managerStates = Array.Empty<bool>(),
-                lastSaveTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-                prestigeMultiplier = 1f,
-                purchasedUpgradeIndices = Array.Empty<int>()
-            };
-        }
+        /// <summary>
+        /// Returns <c>true</c> if a save file exists in <c>PlayerPrefs</c>.
+        /// </summary>
+        public bool HasSave() => PlayerPrefs.HasKey(SaveKey);
 
         #endregion
     }

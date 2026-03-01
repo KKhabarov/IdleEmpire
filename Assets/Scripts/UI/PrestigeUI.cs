@@ -60,7 +60,7 @@ namespace IdleEmpire.UI
         private void LoadCurrentMultiplier()
         {
             var saveData = GameManager.Instance?.SaveManager?.Load();
-            _currentPrestigeMultiplier = saveData?.prestigeMultiplier ?? 1f;
+            _currentPrestigeMultiplier = (float)(saveData?.prestigeMultiplier ?? 1.0);
         }
 
         private void RefreshUI()
@@ -90,7 +90,7 @@ namespace IdleEmpire.UI
             foreach (var business in _businesses)
             {
                 if (business != null)
-                    total += business.CalculateIncomePerSecond();
+                    total += business.GetIncomePerSecond();
             }
             return total;
         }

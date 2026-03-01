@@ -1,3 +1,4 @@
+// Note: Requires TextMeshPro package (com.unity.textmeshpro) to be installed.
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -8,15 +9,15 @@ namespace IdleEmpire.Business
 {
     /// <summary>
     /// MonoBehaviour that drives the business card UI element.
-    /// Displays the business name, current level, income per second, and upgrade cost.
-    /// The buy button is disabled whenever the player cannot afford the next upgrade.
+    /// Displays the business name, level, income per second, upgrade cost,
+    /// and a progress bar for the collection cycle.
     /// </summary>
     public class BusinessUI : MonoBehaviour
     {
         #region Inspector Fields
 
         [Header("Business Reference")]
-        [SerializeField] private BusinessController _businessController;
+        [SerializeField] private BusinessController _controller;
 
         [Header("Text Elements")]
         [SerializeField] private TextMeshProUGUI _nameText;
@@ -27,16 +28,10 @@ namespace IdleEmpire.Business
         [Header("Interactive Elements")]
         [SerializeField] private Button _buyButton;
         [SerializeField] private Button _collectButton;
-        [SerializeField] private Slider _progressBar;
+        [SerializeField] private Image _progressBar;
 
         [Header("Visual")]
         [SerializeField] private Image _iconImage;
-
-        #endregion
-
-        #region Private Fields
-
-        private float _collectionTimer;
 
         #endregion
 
@@ -44,56 +39,54 @@ namespace IdleEmpire.Business
 
         private void OnEnable()
         {
-            if (_businessController != null)
-                _businessController.OnBusinessChanged += RefreshUI;
+            if (_controller != null)
+            {
+                _controller.OnLevelChanged += OnLevelChanged;
+                _controller.OnCycleProgress += OnCycleProgress;
+            }
 
-            if (GameManager.Instance?.CurrencyManager != null)
-                GameManager.Instance.CurrencyManager.OnMoneyChanged += OnMoneyChanged;
+            var currency = GameManager.Instance?.CurrencyManager;
+            if (currency != null)
+                currency.OnMoneyChanged += OnMoneyChanged;
 
-            RefreshUI();
+            UpdateUI();
         }
 
         private void OnDisable()
         {
-            if (_businessController != null)
-                _businessController.OnBusinessChanged -= RefreshUI;
+            if (_controller != null)
+            {
+                _controller.OnLevelChanged -= OnLevelChanged;
+                _controller.OnCycleProgress -= OnCycleProgress;
+            }
 
-            if (GameManager.Instance?.CurrencyManager != null)
-                GameManager.Instance.CurrencyManager.OnMoneyChanged -= OnMoneyChanged;
-        }
-
-        private void Update()
-        {
-            UpdateProgressBar();
+            var currency = GameManager.Instance?.CurrencyManager;
+            if (currency != null)
+                currency.OnMoneyChanged -= OnMoneyChanged;
         }
 
         #endregion
 
         #region UI Refresh
 
-        private void RefreshUI()
+        /// <summary>Refreshes all text fields and button states.</summary>
+        public void UpdateUI()
         {
-            if (_businessController == null || _businessController.Data == null) return;
+            if (_controller == null || _controller.BusinessData == null) return;
 
-            var data = _businessController.Data;
+            var data = _controller.BusinessData;
 
             if (_nameText != null)
                 _nameText.text = data.BusinessName;
 
             if (_levelText != null)
-                _levelText.text = $"Lvl {_businessController.Level}";
+                _levelText.text = $"Lvl {_controller.Level}";
 
             if (_incomeText != null)
-            {
-                double ips = _businessController.CalculateIncomePerSecond();
-                _incomeText.text = $"{NumberFormatter.FormatNumber(ips)}/s";
-            }
+                _incomeText.text = $"{NumberFormatter.FormatNumber(_controller.GetIncomePerSecond())}/s";
 
             if (_costText != null)
-            {
-                double cost = _businessController.CalculateCost();
-                _costText.text = NumberFormatter.FormatNumber(cost);
-            }
+                _costText.text = NumberFormatter.FormatNumber(_controller.GetCurrentCost());
 
             if (_iconImage != null && data.Icon != null)
                 _iconImage.sprite = data.Icon;
@@ -102,46 +95,29 @@ namespace IdleEmpire.Business
             UpdateCollectButtonState();
         }
 
-        private void OnMoneyChanged(double _)
+        private void OnLevelChanged(BusinessController _) => UpdateUI();
+
+        private void OnMoneyChanged(double _) => UpdateBuyButtonState();
+
+        private void OnCycleProgress(BusinessController _, float progress)
         {
-            // Only need to refresh affordability on money changes.
-            UpdateBuyButtonState();
+            if (_progressBar != null)
+                _progressBar.fillAmount = progress;
         }
 
         private void UpdateBuyButtonState()
         {
-            if (_buyButton == null || _businessController == null) return;
-
+            if (_buyButton == null || _controller == null) return;
             bool canAfford = GameManager.Instance?.CurrencyManager?.CanAfford(
-                _businessController.CalculateCost()) ?? false;
-
+                _controller.GetCurrentCost()) ?? false;
             _buyButton.interactable = canAfford;
         }
 
         private void UpdateCollectButtonState()
         {
-            if (_collectButton == null) return;
-            // Manual collect only available when no manager is hired.
-            _collectButton.gameObject.SetActive(!_businessController.HasManager);
-        }
-
-        #endregion
-
-        #region Progress Bar
-
-        private void UpdateProgressBar()
-        {
-            if (_progressBar == null || _businessController == null || _businessController.Data == null)
-                return;
-
-            float interval = _businessController.Data.CollectionInterval;
-            if (interval <= 0f) return;
-
-            _collectionTimer += Time.deltaTime;
-            if (_collectionTimer >= interval)
-                _collectionTimer = 0f;
-
-            _progressBar.value = _collectionTimer / interval;
+            if (_collectButton == null || _controller == null) return;
+            // Manual collect button is only visible when no manager is hired.
+            _collectButton.gameObject.SetActive(!_controller.HasManager);
         }
 
         #endregion
@@ -149,16 +125,15 @@ namespace IdleEmpire.Business
         #region Button Handlers
 
         /// <summary>Called by the Buy button's OnClick event.</summary>
-        public void OnBuyButtonClicked()
+        public void OnBuyClicked()
         {
-            _businessController?.Purchase();
+            _controller?.Purchase();
         }
 
         /// <summary>Called by the Collect button's OnClick event (manual tap).</summary>
-        public void OnCollectButtonClicked()
+        public void OnCollectClicked()
         {
-            _businessController?.CollectIncome();
-            _collectionTimer = 0f;
+            _controller?.StartCollecting();
         }
 
         #endregion

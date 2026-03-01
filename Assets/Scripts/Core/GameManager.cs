@@ -1,14 +1,14 @@
 using System;
-using System.Collections;
 using UnityEngine;
 using IdleEmpire.Business;
+using IdleEmpire.Upgrades;
 using IdleEmpire.Utils;
 
 namespace IdleEmpire.Core
 {
     /// <summary>
-    /// Main game controller. Singleton MonoBehaviour that manages game initialization,
-    /// pause/resume, offline earnings, and periodic auto-save.
+    /// Main game controller. Singleton MonoBehaviour with <c>DontDestroyOnLoad</c>.
+    /// Manages initialization, offline earnings, periodic auto-save, pause/resume, and prestige.
     /// </summary>
     public class GameManager : MonoBehaviour
     {
@@ -26,7 +26,12 @@ namespace IdleEmpire.Core
             }
             Instance = this;
             DontDestroyOnLoad(gameObject);
-            InitializeGame();
+
+            // Find managers if not assigned in inspector.
+            if (_currencyManager == null)
+                _currencyManager = FindObjectOfType<CurrencyManager>();
+            if (_saveManager == null)
+                _saveManager = FindObjectOfType<SaveManager>();
         }
 
         #endregion
@@ -36,20 +41,20 @@ namespace IdleEmpire.Core
         [Header("Managers")]
         [SerializeField] private CurrencyManager _currencyManager;
         [SerializeField] private SaveManager _saveManager;
-        [SerializeField] private IdleEmpire.Upgrades.UpgradeManager _upgradeManager;
+        [SerializeField] private UpgradeManager _upgradeManager;
 
         [Header("Businesses")]
         [SerializeField] private BusinessController[] _businesses;
 
         [Header("Settings")]
         [SerializeField] private float _autoSaveInterval = 60f;
-        [SerializeField] private int _maxOfflineHours = 8;
+        [SerializeField] private float _maxOfflineHours = 8f;
 
         #endregion
 
         #region Private Fields
 
-        private float _prestigeMultiplier = 1f;
+        private double _prestigeMultiplier = 1.0;
 
         #endregion
 
@@ -66,96 +71,51 @@ namespace IdleEmpire.Core
 
         #endregion
 
-        #region Initialization
+        #region Unity Callbacks
 
-        private void InitializeGame()
+        private void Start()
         {
-            // Load saved game state
-            SaveData saveData = _saveManager.Load();
-            ApplySaveData(saveData);
-
-            // Calculate and apply offline earnings
-            double offlineEarnings = OfflineCalculator.CalculateOfflineEarnings(
-                saveData.lastSaveTimestamp,
-                _businesses,
-                _maxOfflineHours
-            );
-
-            if (offlineEarnings > 0)
+            // Load save and apply state.
+            SaveData saveData = _saveManager?.Load();
+            if (saveData != null)
             {
-                _currencyManager.AddMoney(offlineEarnings);
-                Debug.Log($"[GameManager] Offline earnings applied: {NumberFormatter.FormatNumber(offlineEarnings)}");
-            }
+                ApplySaveData(saveData);
 
-            // Start auto-save coroutine
-            StartCoroutine(AutoSaveCoroutine());
-        }
-
-        private void ApplySaveData(SaveData saveData)
-        {
-            _currencyManager.SetMoney(saveData.money);
-            _prestigeMultiplier = saveData.prestigeMultiplier;
-
-            if (_businesses == null) return;
-
-            for (int i = 0; i < _businesses.Length; i++)
-            {
-                if (i < saveData.businessLevels.Length)
-                    _businesses[i].SetLevel(saveData.businessLevels[i]);
-
-                if (i < saveData.managerStates.Length)
-                    _businesses[i].SetManager(saveData.managerStates[i]);
-
-                _businesses[i].SetPrestigeMultiplier(saveData.prestigeMultiplier);
-            }
-        }
-
-        #endregion
-
-        #region Auto Save
-
-        private IEnumerator AutoSaveCoroutine()
-        {
-            while (true)
-            {
-                yield return new WaitForSeconds(_autoSaveInterval);
-                SaveGame();
-            }
-        }
-
-        /// <summary>Manually triggers a game save.</summary>
-        public void SaveGame()
-        {
-            SaveData data = CollectSaveData();
-            _saveManager.Save(data);
-            Debug.Log("[GameManager] Game auto-saved.");
-        }
-
-        private SaveData CollectSaveData()
-        {
-            int[] levels = new int[_businesses != null ? _businesses.Length : 0];
-            bool[] managers = new bool[_businesses != null ? _businesses.Length : 0];
-
-            if (_businesses != null)
-            {
-                for (int i = 0; i < _businesses.Length; i++)
+                // Calculate and apply offline earnings.
+                if (DateTime.TryParse(saveData.lastSaveTime, null,
+                        System.Globalization.DateTimeStyles.RoundtripKind, out DateTime lastSave))
                 {
-                    levels[i] = _businesses[i].Level;
-                    managers[i] = _businesses[i].HasManager;
+                    double offlineEarnings = OfflineCalculator.CalculateOfflineEarnings(
+                        lastSave,
+                        _businesses,
+                        _prestigeMultiplier,
+                        _maxOfflineHours);
+
+                    if (offlineEarnings > 0)
+                    {
+                        _currencyManager?.AddMoney(offlineEarnings);
+                        Debug.Log($"[GameManager] Offline earnings applied: {NumberFormatter.FormatNumber(offlineEarnings)}");
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning($"[GameManager] Could not parse lastSaveTime: '{saveData.lastSaveTime}'. Offline earnings skipped.");
                 }
             }
 
-            return new SaveData
-            {
-                money = _currencyManager.GetMoney(),
-                businessLevels = levels,
-                managerStates = managers,
-                lastSaveTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-                prestigeMultiplier = _prestigeMultiplier,
-                purchasedUpgradeIndices = _upgradeManager != null
-                    ? _upgradeManager.GetPurchasedIndices()
-                    : Array.Empty<int>()
-            };
+            // Auto-save every 60 seconds.
+            InvokeRepeating(nameof(SaveGame), _autoSaveInterval, _autoSaveInterval);
+        }
+
+        private void OnApplicationPause(bool pauseStatus)
+        {
+            if (pauseStatus)
+                SaveGame();
+        }
+
+        private void OnApplicationQuit()
+        {
+            SaveGame();
         }
 
         #endregion
@@ -180,22 +140,76 @@ namespace IdleEmpire.Core
 
         #endregion
 
-        #region Unity Callbacks
+        #region Save
 
-        private void OnApplicationPause(bool pauseStatus)
+        /// <summary>Manually triggers a game save.</summary>
+        public void SaveGame()
         {
-            if (pauseStatus)
-                SaveGame();
+            SaveData data = CollectSaveData();
+            _saveManager?.Save(data);
+            Debug.Log("[GameManager] Game saved.");
         }
 
-        private void OnApplicationQuit()
+        private void ApplySaveData(SaveData saveData)
         {
-            SaveGame();
+            _currencyManager?.SetMoney(saveData.money);
+            _prestigeMultiplier = saveData.prestigeMultiplier;
+
+            if (_businesses == null) return;
+
+            for (int i = 0; i < _businesses.Length; i++)
+            {
+                if (i < saveData.businessLevels.Length)
+                    _businesses[i].SetLevel(saveData.businessLevels[i]);
+
+                if (i < saveData.managersHired.Length)
+                    _businesses[i].SetManager(saveData.managersHired[i]);
+
+                _businesses[i].SetPrestigeMultiplier(_prestigeMultiplier);
+            }
+        }
+
+        private SaveData CollectSaveData()
+        {
+            int[] levels = new int[_businesses != null ? _businesses.Length : 0];
+            bool[] managers = new bool[_businesses != null ? _businesses.Length : 0];
+
+            if (_businesses != null)
+            {
+                for (int i = 0; i < _businesses.Length; i++)
+                {
+                    levels[i] = _businesses[i].Level;
+                    managers[i] = _businesses[i].HasManager;
+                }
+            }
+
+            bool[] upgrades = _upgradeManager != null
+                ? _upgradeManager.GetPurchasedArray()
+                : Array.Empty<bool>();
+
+            return new SaveData
+            {
+                money = _currencyManager?.GetMoney() ?? 0,
+                businessLevels = levels,
+                managersHired = managers,
+                upgradesPurchased = upgrades,
+                prestigeMultiplier = _prestigeMultiplier,
+                lastSaveTime = DateTime.UtcNow.ToString("O")
+            };
         }
 
         #endregion
 
         #region Prestige
+
+        /// <summary>
+        /// Stub for prestige reset functionality — full implementation pending.
+        /// </summary>
+        public void PrestigeReset()
+        {
+            // TODO: Implement full prestige reset logic.
+            Debug.Log("[GameManager] PrestigeReset called (stub).");
+        }
 
         /// <summary>
         /// Performs a prestige reset: resets all businesses and money, then applies a new prestige multiplier.
@@ -205,18 +219,16 @@ namespace IdleEmpire.Core
         {
             _prestigeMultiplier = newMultiplier;
 
-            // Reset businesses
             if (_businesses != null)
             {
                 foreach (var business in _businesses)
                 {
                     business.SetLevel(0);
-                    business.SetPrestigeMultiplier(newMultiplier);
+                    business.SetPrestigeMultiplier(_prestigeMultiplier);
                 }
             }
 
-            _currencyManager.SetMoney(0);
-
+            _currencyManager?.SetMoney(0);
             SaveGame();
 
             Debug.Log($"[GameManager] Prestige performed. New multiplier: {newMultiplier}");

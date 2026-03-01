@@ -75,7 +75,7 @@ namespace IdleEmpire.UI
             foreach (var business in _businesses)
             {
                 if (business != null)
-                    totalIPS += business.CalculateIncomePerSecond();
+                    totalIPS += business.GetIncomePerSecond();
             }
 
             _incomePerSecondText.text = $"{NumberFormatter.FormatNumber(totalIPS)}/s";
