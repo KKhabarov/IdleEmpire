@@ -86,6 +86,82 @@ namespace IdleEmpire.Managers
         /// </summary>
         public bool IsManagerHired(int managerIndex) => _hiredManagerIndices.Contains(managerIndex);
 
+        /// <summary>
+        /// Returns all <see cref="ManagerData"/> entries regardless of hired status.
+        /// Used by ShopUI to display the full manager list.
+        /// </summary>
+        /// <returns>A copy of the complete manager array.</returns>
+        public ManagerData[] GetAllManagers()
+        {
+            return _allManagers ?? Array.Empty<ManagerData>();
+        }
+
+        /// <summary>
+        /// Returns the list of managers that have not yet been hired.
+        /// </summary>
+        /// <returns>Array of available (unhired) <see cref="ManagerData"/>.</returns>
+        public ManagerData[] GetAvailableManagers()
+        {
+            var available = new List<ManagerData>();
+
+            if (_allManagers == null) return available.ToArray();
+
+            for (int i = 0; i < _allManagers.Length; i++)
+            {
+                if (!_hiredManagerIndices.Contains(i))
+                    available.Add(_allManagers[i]);
+            }
+
+            return available.ToArray();
+        }
+
+        /// <summary>
+        /// Returns the actual indices (into <c>_allManagers</c>) of managers not yet hired.
+        /// Use these indices when calling <see cref="HireManager"/> from the shop UI.
+        /// </summary>
+        /// <returns>Array of available manager indices.</returns>
+        public int[] GetAvailableManagerIndices()
+        {
+            var indices = new List<int>();
+
+            if (_allManagers == null) return indices.ToArray();
+
+            for (int i = 0; i < _allManagers.Length; i++)
+            {
+                if (!_hiredManagerIndices.Contains(i))
+                    indices.Add(i);
+            }
+
+            return indices.ToArray();
+        }
+
+        /// <summary>
+        /// Restores hired-manager state from a saved bool array and re-activates business automation.
+        /// Called by <see cref="Core.GameManager"/> during save-data load.
+        /// </summary>
+        /// <param name="states">Bool array where index = manager index and value = was hired.</param>
+        public void LoadHiredManagers(bool[] states)
+        {
+            if (states == null) return;
+
+            for (int i = 0; i < states.Length; i++)
+            {
+                if (states[i] && IsValidIndex(i) && !_hiredManagerIndices.Contains(i))
+                {
+                    _hiredManagerIndices.Add(i);
+                    ActivateManagerForBusiness(_allManagers[i].TargetBusinessIndex);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Clears all hired managers. Used during a prestige reset.
+        /// </summary>
+        public void ResetManagers()
+        {
+            _hiredManagerIndices.Clear();
+        }
+
         #endregion
 
         #region Helpers

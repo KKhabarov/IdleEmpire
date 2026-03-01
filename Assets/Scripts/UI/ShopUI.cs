@@ -106,9 +106,36 @@ namespace IdleEmpire.UI
 
             ClearContainer(_managerListContainer);
 
-            // Iterate all manager data via reflection on the ManagerController.
-            // In a real project you would expose an array from ManagerController.
-            // Here we call HireManager with known indices and let it handle validation.
+            ManagerData[] allManagers = _managerController.GetAllManagers();
+
+            for (int i = 0; i < allManagers.Length; i++)
+            {
+                int managerIndex = i;
+                bool isHired = _managerController.IsManagerHired(managerIndex);
+
+                GameObject item = Instantiate(_managerItemPrefab, _managerListContainer);
+
+                if (isHired)
+                {
+                    // Show hired managers as disabled "Hired" entries.
+                    SetupShopItem(item, allManagers[i].ManagerName, allManagers[i].Description,
+                        allManagers[i].Cost, allManagers[i].Icon, null);
+
+                    var buyButton = item.GetComponentInChildren<Button>();
+                    if (buyButton != null)
+                    {
+                        buyButton.interactable = false;
+                        var costText = item.transform.Find("CostText")?.GetComponent<TextMeshProUGUI>();
+                        if (costText != null) costText.text = "Hired";
+                    }
+                }
+                else
+                {
+                    SetupShopItem(item, allManagers[i].ManagerName, allManagers[i].Description,
+                        allManagers[i].Cost, allManagers[i].Icon,
+                        () => _managerController.HireManager(managerIndex));
+                }
+            }
         }
 
         #endregion

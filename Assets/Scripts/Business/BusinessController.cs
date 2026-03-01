@@ -206,6 +206,14 @@ namespace IdleEmpire.Business
         }
 
         /// <summary>
+        /// Resets the income multiplier back to 1.0. Used during a prestige reset.
+        /// </summary>
+        public void ResetMultiplier()
+        {
+            _incomeMultiplier = 1.0;
+        }
+
+        /// <summary>
         /// Sets the prestige multiplier applied to income calculations.
         /// </summary>
         /// <param name="multiplier">Prestige multiplier value (minimum 1.0).</param>
