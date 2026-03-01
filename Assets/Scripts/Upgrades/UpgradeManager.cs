@@ -127,6 +127,19 @@ namespace IdleEmpire.Upgrades
         /// </summary>
         public bool IsUpgradePurchased(int upgradeIndex) => _purchasedIndices.Contains(upgradeIndex);
 
+        /// <summary>
+        /// Restores previously purchased upgrades from a saved index array and re-applies their multipliers.
+        /// Called by <see cref="Core.GameManager"/> during save-data load.
+        /// </summary>
+        /// <param name="indices">Array of upgrade indices that were purchased in a prior session.</param>
+        public void LoadPurchasedUpgrades(int[] indices)
+        {
+            if (indices == null) return;
+
+            foreach (int index in indices)
+                RestoreUpgrade(index);
+        }
+
         /// <summary>Returns the indices of all purchased upgrades (for serialization).</summary>
         public int[] GetPurchasedIndices()
         {
@@ -149,9 +162,17 @@ namespace IdleEmpire.Upgrades
             return result;
         }
 
-        #endregion
+        /// <summary>
+        /// Clears all purchased upgrades. Used during a prestige reset.
+        /// Note: upgrade multipliers already applied to businesses are not reversed here;
+        /// callers should also reset the business income multipliers (e.g., via <see cref="Business.BusinessController.ResetMultiplier"/>).
+        /// </summary>
+        public void ResetUpgrades()
+        {
+            _purchasedIndices.Clear();
+        }
 
-        #region Helpers
+        #endregion
 
         private void ApplyUpgrade(UpgradeData upgrade)
         {

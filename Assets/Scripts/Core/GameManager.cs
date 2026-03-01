@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using IdleEmpire.Business;
 using IdleEmpire.Upgrades;
+using IdleEmpire.Managers;
 using IdleEmpire.Utils;
 
 namespace IdleEmpire.Core
@@ -42,6 +43,7 @@ namespace IdleEmpire.Core
         [SerializeField] private CurrencyManager _currencyManager;
         [SerializeField] private SaveManager _saveManager;
         [SerializeField] private UpgradeManager _upgradeManager;
+        [SerializeField] private ManagerController _managerController;
 
         [Header("Businesses")]
         [SerializeField] private BusinessController[] _businesses;
@@ -49,6 +51,7 @@ namespace IdleEmpire.Core
         [Header("Settings")]
         [SerializeField] private float _autoSaveInterval = 60f;
         [SerializeField] private float _maxOfflineHours = 8f;
+        [SerializeField] private double _prestigeBonusPerReset = 0.5;
 
         #endregion
 
@@ -65,6 +68,9 @@ namespace IdleEmpire.Core
 
         /// <summary>Gets the SaveManager instance.</summary>
         public SaveManager SaveManager => _saveManager;
+
+        /// <summary>Gets the ManagerController instance.</summary>
+        public ManagerController ManagerController => _managerController;
 
         /// <summary>Whether the game is currently paused.</summary>
         public bool IsPaused { get; private set; }
@@ -203,12 +209,30 @@ namespace IdleEmpire.Core
         #region Prestige
 
         /// <summary>
-        /// Stub for prestige reset functionality — full implementation pending.
+        /// Performs a full prestige reset: resets all businesses and money, clears managers and upgrades,
+        /// increments the prestige multiplier by <c>_prestigeBonusPerReset</c>, and saves.
         /// </summary>
         public void PrestigeReset()
         {
-            // TODO: Implement full prestige reset logic.
-            Debug.Log("[GameManager] PrestigeReset called (stub).");
+            _prestigeMultiplier += _prestigeBonusPerReset;
+
+            if (_businesses != null)
+            {
+                foreach (var business in _businesses)
+                {
+                    business.ResetMultiplier();
+                    business.SetLevel(0);
+                    business.SetManager(false);
+                    business.SetPrestigeMultiplier(_prestigeMultiplier);
+                }
+            }
+
+            _upgradeManager?.ResetUpgrades();
+            _managerController?.ResetManagers();
+            _currencyManager?.SetMoney(0);
+            SaveGame();
+
+            Debug.Log($"[GameManager] Prestige reset performed. New multiplier: {_prestigeMultiplier}");
         }
 
         /// <summary>
