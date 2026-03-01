@@ -1,12 +1,11 @@
 using System;
-using System.Collections;
 using UnityEngine;
 using IdleEmpire.Core;
 
 namespace IdleEmpire.Business
 {
     /// <summary>
-    /// MonoBehaviour attached to each business game object.
+    /// MonoBehaviour attached to each business card GameObject.
     /// Handles purchasing levels, calculating income/cost, and collecting income
     /// either manually (tap) or automatically when a manager is assigned.
     /// </summary>
@@ -14,18 +13,21 @@ namespace IdleEmpire.Business
     {
         #region Events
 
-        /// <summary>Fired whenever this business's level or state changes.</summary>
-        public event Action OnBusinessChanged;
+        /// <summary>Fired whenever this business's level changes.</summary>
+        public event Action<BusinessController> OnLevelChanged;
 
-        /// <summary>Fired when income is collected. Passes the collected amount.</summary>
-        public event Action<double> OnIncomeCollected;
+        /// <summary>Fired when income is collected. Passes the controller and the amount collected.</summary>
+        public event Action<BusinessController, double> OnIncomeCollected;
+
+        /// <summary>Fired each frame with the current cycle progress (0–1). Used to drive progress bars.</summary>
+        public event Action<BusinessController, float> OnCycleProgress;
 
         #endregion
 
         #region Inspector Fields
 
         [Header("Configuration")]
-        [SerializeField] private BusinessData _data;
+        [SerializeField] private BusinessData _businessData;
 
         [Header("Initial State")]
         [SerializeField] private int _level = 0;
@@ -35,22 +37,26 @@ namespace IdleEmpire.Business
 
         #region Private Fields
 
-        private float _prestigeMultiplier = 1f;
-        private float _upgradeMultiplier = 1f;
-        private Coroutine _autoCollectCoroutine;
+        private double _incomeMultiplier = 1.0;
+        private float _cycleTimer = 0f;
+        private bool _isCollecting = false;
+        private double _prestigeMultiplier = 1.0;
 
         #endregion
 
         #region Properties
-
-        /// <summary>Reference to this business's static configuration.</summary>
-        public BusinessData Data => _data;
 
         /// <summary>Current upgrade level (0 = not yet purchased).</summary>
         public int Level => _level;
 
         /// <summary>Whether a manager has been hired for this business.</summary>
         public bool HasManager => _hasManager;
+
+        /// <summary>Reference to this business's static configuration data.</summary>
+        public BusinessData BusinessData => _businessData;
+
+        /// <summary>Whether this business has been purchased (level &gt; 0).</summary>
+        public bool IsUnlocked => _level > 0;
 
         #endregion
 
@@ -59,7 +65,27 @@ namespace IdleEmpire.Business
         private void Start()
         {
             if (_hasManager)
-                StartAutoCollect();
+                _isCollecting = true;
+        }
+
+        private void Update()
+        {
+            if (!IsUnlocked) return;
+            if (!_isCollecting && !_hasManager) return;
+
+            _cycleTimer += Time.deltaTime;
+            float duration = GetCycleDuration();
+            OnCycleProgress?.Invoke(this, Mathf.Clamp01(_cycleTimer / duration));
+
+            if (_cycleTimer >= duration)
+            {
+                CollectIncome();
+                _cycleTimer = 0f;
+
+                // Manual (non-manager) collection stops after one cycle.
+                if (!_hasManager)
+                    _isCollecting = false;
+            }
         }
 
         #endregion
@@ -73,30 +99,28 @@ namespace IdleEmpire.Business
         /// <returns><c>true</c> if the purchase was successful.</returns>
         public bool Purchase()
         {
-            if (_data == null) return false;
+            if (_businessData == null) return false;
 
-            double cost = CalculateCost();
-            var currencyManager = GameManager.Instance?.CurrencyManager;
+            var currency = GameManager.Instance?.CurrencyManager;
+            if (currency == null) return false;
 
-            if (currencyManager == null || !currencyManager.CanAfford(cost))
-                return false;
+            if (!currency.SpendMoney(GetCurrentCost())) return false;
 
-            currencyManager.SpendMoney(cost);
             _level++;
-            OnBusinessChanged?.Invoke();
+            OnLevelChanged?.Invoke(this);
 
-            Debug.Log($"[BusinessController] {_data.BusinessName} upgraded to level {_level}.");
+            Debug.Log($"[BusinessController] {_businessData.BusinessName} upgraded to level {_level}.");
             return true;
         }
 
         /// <summary>
-        /// Directly sets the business level. Used by <see cref="Core.GameManager"/> during load/prestige.
+        /// Directly sets the business level. Used by <see cref="GameManager"/> during load/prestige.
         /// </summary>
         /// <param name="level">New level value (0 or higher).</param>
         public void SetLevel(int level)
         {
             _level = Mathf.Max(0, level);
-            OnBusinessChanged?.Invoke();
+            OnLevelChanged?.Invoke(this);
         }
 
         #endregion
@@ -104,130 +128,101 @@ namespace IdleEmpire.Business
         #region Income Calculation
 
         /// <summary>
-        /// Calculates the income for one collection cycle.
-        /// Formula: <c>baseIncome * level * prestigeMultiplier * upgradeMultiplier</c>
+        /// Returns the cost to purchase or upgrade to the next level.
         /// </summary>
-        /// <returns>Income amount (double).</returns>
-        public double CalculateIncome()
+        public double GetCurrentCost()
         {
-            if (_data == null || _level <= 0) return 0;
-
-            return _data.BaseIncome * _level * _prestigeMultiplier * _upgradeMultiplier;
+            if (_businessData == null) return double.MaxValue;
+            return _businessData.GetCostForLevel(_level);
         }
 
         /// <summary>
-        /// Returns the income per second (useful for the UI "IPS" display).
+        /// Returns income per collection cycle, including all active multipliers.
         /// </summary>
-        public double CalculateIncomePerSecond()
+        public double GetCurrentIncome()
         {
-            if (_data == null || _level <= 0 || !_hasManager) return 0;
-
-            float interval = _data.CollectionInterval > 0 ? _data.CollectionInterval : 1f;
-            return CalculateIncome() / interval;
+            if (_businessData == null || _level <= 0) return 0;
+            return _businessData.GetIncomeForLevel(_level) * _incomeMultiplier * _prestigeMultiplier;
         }
 
         /// <summary>
-        /// Calculates the cost to purchase the next level.
+        /// Returns the income per second for this business.
         /// </summary>
-        /// <returns>Cost in game currency.</returns>
-        public double CalculateCost()
+        public double GetIncomePerSecond()
         {
-            if (_data == null) return double.MaxValue;
-            return _data.CalculateCost(_level);
+            if (!IsUnlocked) return 0;
+            return GetCurrentIncome() / GetCycleDuration();
         }
 
         #endregion
 
-        #region Income Collection
+        #region Collection
 
         /// <summary>
-        /// Manually collects income for this business (tap/click action).
-        /// Only works if the business has at least level 1.
+        /// Starts the income collection cycle (manual tap or manager automation).
+        /// Has no effect if collection is already in progress.
         /// </summary>
-        public void CollectIncome()
+        public void StartCollecting()
         {
-            double income = CalculateIncome();
+            if (!IsUnlocked || _isCollecting) return;
+            _isCollecting = true;
+        }
+
+        private void CollectIncome()
+        {
+            double income = GetCurrentIncome();
             if (income <= 0) return;
 
             GameManager.Instance?.CurrencyManager?.AddMoney(income);
-            OnIncomeCollected?.Invoke(income);
-
-            Debug.Log($"[BusinessController] {_data?.BusinessName} collected {income:F2}.");
-        }
-
-        private IEnumerator AutoCollectCoroutine()
-        {
-            float interval = _data != null && _data.CollectionInterval > 0
-                ? _data.CollectionInterval
-                : 5f;
-
-            while (_hasManager)
-            {
-                yield return new WaitForSeconds(interval);
-                CollectIncome();
-            }
+            OnIncomeCollected?.Invoke(this, income);
         }
 
         #endregion
 
-        #region Manager
+        #region Manager & Multipliers
 
         /// <summary>
-        /// Sets whether this business has an active manager.
-        /// When <c>true</c> the auto-collect coroutine starts automatically.
+        /// Sets whether a manager is assigned to this business.
+        /// When <c>true</c>, income is collected automatically every cycle.
         /// </summary>
-        /// <param name="hasManager"><c>true</c> to activate manager automation.</param>
-        public void SetManager(bool hasManager)
+        /// <param name="value"><c>true</c> to enable manager auto-collection.</param>
+        public void SetManager(bool value)
         {
-            _hasManager = hasManager;
-
+            _hasManager = value;
             if (_hasManager)
-                StartAutoCollect();
-            else
-                StopAutoCollect();
-
-            OnBusinessChanged?.Invoke();
-        }
-
-        private void StartAutoCollect()
-        {
-            if (_autoCollectCoroutine != null)
-                StopCoroutine(_autoCollectCoroutine);
-
-            _autoCollectCoroutine = StartCoroutine(AutoCollectCoroutine());
-        }
-
-        private void StopAutoCollect()
-        {
-            if (_autoCollectCoroutine != null)
             {
-                StopCoroutine(_autoCollectCoroutine);
-                _autoCollectCoroutine = null;
+                _isCollecting = true;
+                _cycleTimer = 0f;
             }
         }
 
-        #endregion
-
-        #region Multipliers
+        /// <summary>
+        /// Multiplies <c>_incomeMultiplier</c> by the given value, permanently boosting income.
+        /// </summary>
+        /// <param name="multiplier">Multiplicative factor to apply.</param>
+        public void ApplyMultiplier(double multiplier)
+        {
+            _incomeMultiplier *= multiplier;
+        }
 
         /// <summary>
         /// Sets the prestige multiplier applied to income calculations.
         /// </summary>
-        /// <param name="multiplier">Multiplier value (1.0 = no bonus).</param>
-        public void SetPrestigeMultiplier(float multiplier)
+        /// <param name="multiplier">Prestige multiplier value (minimum 1.0).</param>
+        public void SetPrestigeMultiplier(double multiplier)
         {
-            _prestigeMultiplier = Mathf.Max(1f, multiplier);
-            OnBusinessChanged?.Invoke();
+            _prestigeMultiplier = Math.Max(1.0, multiplier);
         }
 
-        /// <summary>
-        /// Applies an upgrade multiplier on top of any existing multiplier.
-        /// </summary>
-        /// <param name="multiplier">Multiplicative factor applied to the current upgrade multiplier.</param>
-        public void ApplyUpgradeMultiplier(float multiplier)
+        #endregion
+
+        #region Helpers
+
+        private float GetCycleDuration()
         {
-            _upgradeMultiplier *= multiplier;
-            OnBusinessChanged?.Invoke();
+            return _businessData != null && _businessData.CycleDuration > 0
+                ? _businessData.CycleDuration
+                : 1f;
         }
 
         #endregion

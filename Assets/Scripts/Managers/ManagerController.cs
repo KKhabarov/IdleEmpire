@@ -39,11 +39,11 @@ namespace IdleEmpire.Managers
         {
             // Restore manager states from save data.
             var saveData = GameManager.Instance?.SaveManager?.Load();
-            if (saveData?.managerStates == null) return;
+            if (saveData?.managersHired == null) return;
 
-            for (int i = 0; i < saveData.managerStates.Length; i++)
+            for (int i = 0; i < saveData.managersHired.Length; i++)
             {
-                if (saveData.managerStates[i])
+                if (saveData.managersHired[i])
                     ActivateManagerForBusiness(i);
             }
         }
