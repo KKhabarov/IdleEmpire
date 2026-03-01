@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using IdleEmpire.Business;
 using IdleEmpire.Core;
+using IdleEmpire.Audio;
 
 namespace IdleEmpire.Upgrades
 {
@@ -78,6 +79,7 @@ namespace IdleEmpire.Upgrades
             _purchasedIndices.Add(upgradeIndex);
             ApplyUpgrade(upgrade);
             OnUpgradesChanged?.Invoke();
+            AudioManager.Instance?.PlayUpgrade();
 
             Debug.Log($"[UpgradeManager] Upgrade '{upgrade.UpgradeName}' purchased.");
             return true;

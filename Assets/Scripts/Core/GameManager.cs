@@ -5,6 +5,7 @@ using IdleEmpire.Upgrades;
 using IdleEmpire.Managers;
 using IdleEmpire.UI;
 using IdleEmpire.Utils;
+using IdleEmpire.Audio;
 
 namespace IdleEmpire.Core
 {
@@ -247,6 +248,7 @@ namespace IdleEmpire.Core
             _currencyManager?.SetMoney(0);
             SaveGame();
 
+            AudioManager.Instance?.PlayPrestige();
             OnPrestigeReset?.Invoke();
             Debug.Log($"[GameManager] Prestige reset performed. New multiplier: {_prestigeMultiplier}");
         }

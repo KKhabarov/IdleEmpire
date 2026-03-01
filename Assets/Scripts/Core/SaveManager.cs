@@ -27,6 +27,9 @@ namespace IdleEmpire.Core
 
         /// <summary>ISO 8601 UTC timestamp of the last save — used for offline earnings.</summary>
         public string lastSaveTime;
+
+        /// <summary>Whether the player has completed or skipped the tutorial.</summary>
+        public bool tutorialCompleted;
     }
 
     /// <summary>
