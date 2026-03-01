@@ -35,6 +35,18 @@ namespace IdleEmpire.Core
         /// </summary>
         public event Action<double> OnMoneyChanged;
 
+        /// <summary>
+        /// Invoked only when money is added via <see cref="AddMoney"/>.
+        /// Passes the positive amount that was added. Use this for lifetime-earnings tracking.
+        /// </summary>
+        public event Action<double> OnMoneyAdded;
+
+        /// <summary>
+        /// Invoked only when money is deducted via <see cref="SpendMoney"/>.
+        /// Passes the positive amount that was spent. Use this for lifetime-spending tracking.
+        /// </summary>
+        public event Action<double> OnMoneySpent;
+
         #endregion
 
         #region Private Fields
@@ -53,6 +65,7 @@ namespace IdleEmpire.Core
         {
             if (amount <= 0) return;
             _money += amount;
+            OnMoneyAdded?.Invoke(amount);
             OnMoneyChanged?.Invoke(_money);
         }
 
@@ -66,6 +79,7 @@ namespace IdleEmpire.Core
         {
             if (amount <= 0 || !CanAfford(amount)) return false;
             _money -= amount;
+            OnMoneySpent?.Invoke(amount);
             OnMoneyChanged?.Invoke(_money);
             return true;
         }

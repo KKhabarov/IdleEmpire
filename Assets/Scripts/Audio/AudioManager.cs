@@ -59,6 +59,7 @@ namespace IdleEmpire.Audio
         [SerializeField] private AudioClip _errorSfx;
         [SerializeField] private AudioClip _levelUpSfx;
         [SerializeField] private AudioClip _offlineEarningsSfx;
+        [SerializeField] private AudioClip _achievementSfx;
 
         [Header("Settings")]
         [SerializeField] private float _sfxVolume = 0.5f;
@@ -128,6 +129,9 @@ namespace IdleEmpire.Audio
 
         /// <summary>Plays the offline-earnings-popup sound effect.</summary>
         public void PlayOfflineEarnings() => PlaySfx(_offlineEarningsSfx);
+
+        /// <summary>Plays the achievement-unlocked celebratory sound effect.</summary>
+        public void PlayAchievement() => PlaySfx(_achievementSfx);
 
         #endregion
 
