@@ -322,7 +322,7 @@ namespace IdleEmpire.UI
             layout.childForceExpandWidth  = true;
             layout.childForceExpandHeight = true;
 
-            string[] labels = { "🏭 Business", "🛒 Shop", "⭐ Prestige", "⚙️ Settings" };
+            string[] labels = { "Business", "Shop", "Prestige", "Settings" };
             _tabButtons = new Button[labels.Length];
             for (int i = 0; i < labels.Length; i++)
             {
@@ -618,7 +618,7 @@ namespace IdleEmpire.UI
             double balance = GameManager.Instance?.CurrencyManager?.GetMoney() ?? 0;
 
             // ── Upgrades ─────────────────────────────────────────────────────
-            AddSectionHeader(_shopContent, "⬆️ Upgrades");
+            AddSectionHeader(_shopContent, "UPGRADES");
 
             if (_upgradeManager != null)
             {
@@ -633,7 +633,7 @@ namespace IdleEmpire.UI
             }
 
             // ── Managers ─────────────────────────────────────────────────────
-            AddSectionHeader(_shopContent, "👔 Managers");
+            AddSectionHeader(_shopContent, "MANAGERS");
 
             if (_managerController != null)
             {
@@ -775,7 +775,7 @@ namespace IdleEmpire.UI
             if (isHired)
             {
                 TextMeshProUGUI hiredText = CreateTMPText(card.transform, "Hired",
-                    "✅ Hired", 22, ColorIncome, TextAlignmentOptions.Center, bold: true);
+                    "HIRED", 22, ColorIncome, TextAlignmentOptions.Center, bold: true);
                 RectTransform hiredRT = hiredText.GetComponent<RectTransform>();
                 hiredRT.anchorMin = new Vector2(0.72f, 0.15f);
                 hiredRT.anchorMax = new Vector2(1f, 0.85f);
@@ -854,7 +854,7 @@ namespace IdleEmpire.UI
             Transform content = contentGO.transform;
 
             // Title
-            AddLayoutText(content, "Title", "⭐ Prestige", 44, ColorMoney,
+            AddLayoutText(content, "Title", "PRESTIGE", 44, ColorMoney,
                 bold: true, height: 80, alignment: TextAlignmentOptions.Center);
 
             // Current multiplier (read from save data)
@@ -912,7 +912,7 @@ namespace IdleEmpire.UI
             sureTMP.enableWordWrapping = true;
 
             GameObject confirmBtnGO = CreateButton(confirmPanel.transform,
-                "✓ Confirm Prestige", ColorAccent, ColorText, 260, 70);
+                "CONFIRM", ColorAccent, ColorText, 260, 70);
             LayoutElement confirmBtnLE = confirmBtnGO.AddComponent<LayoutElement>();
             confirmBtnLE.minHeight       = 70f;
             confirmBtnLE.preferredHeight = 70f;
@@ -923,7 +923,7 @@ namespace IdleEmpire.UI
             });
 
             GameObject cancelBtnGO = CreateButton(confirmPanel.transform,
-                "✗ Cancel", ColorCard, ColorText, 200, 60);
+                "CANCEL", ColorCard, ColorText, 200, 60);
             LayoutElement cancelBtnLE = cancelBtnGO.AddComponent<LayoutElement>();
             cancelBtnLE.minHeight       = 60f;
             cancelBtnLE.preferredHeight = 60f;
@@ -995,21 +995,21 @@ namespace IdleEmpire.UI
             Transform content = contentGO.transform;
 
             // Title
-            AddLayoutText(content, "Title", "⚙️ Settings", 44, ColorText,
+            AddLayoutText(content, "Title", "SETTINGS", 44, ColorText,
                 bold: true, height: 80, alignment: TextAlignmentOptions.Center);
 
             // Audio toggles
             bool musicOn = AudioManager.Instance?.IsMusicEnabled ?? true;
             bool sfxOn   = AudioManager.Instance?.IsSfxEnabled   ?? true;
 
-            BuildToggleRow(content, "Music", "🎵 Music", musicOn,
+            BuildToggleRow(content, "Music", "Music", musicOn,
                 enabled => AudioManager.Instance?.ToggleMusic(enabled));
 
-            BuildToggleRow(content, "SFX", "🔊 SFX", sfxOn,
+            BuildToggleRow(content, "SFX", "SFX", sfxOn,
                 enabled => AudioManager.Instance?.ToggleSfx(enabled));
 
             // Save button
-            GameObject saveBtnGO = CreateButton(content, "💾 Save Game",
+            GameObject saveBtnGO = CreateButton(content, "SAVE GAME",
                 ColorIncome, ColorBackground, 300, 70);
             LayoutElement saveLE = saveBtnGO.AddComponent<LayoutElement>();
             saveLE.minHeight       = 70f;
@@ -1018,7 +1018,7 @@ namespace IdleEmpire.UI
                 () => GameManager.Instance?.SaveGame());
 
             // Reset progress button
-            GameObject resetBtnGO = CreateButton(content, "⚠️ Reset Progress",
+            GameObject resetBtnGO = CreateButton(content, "RESET PROGRESS",
                 ColorAccent, ColorText, 300, 70);
             LayoutElement resetLE = resetBtnGO.AddComponent<LayoutElement>();
             resetLE.minHeight       = 70f;
@@ -1051,7 +1051,7 @@ namespace IdleEmpire.UI
             resetSureTMP.enableWordWrapping = true;
 
             GameObject resetConfirmBtnGO = CreateButton(resetConfirm.transform,
-                "✓ Confirm Reset", ColorAccent, ColorText, 260, 70);
+                "CONFIRM RESET", ColorAccent, ColorText, 260, 70);
             LayoutElement rcLE = resetConfirmBtnGO.AddComponent<LayoutElement>();
             rcLE.minHeight       = 70f;
             rcLE.preferredHeight = 70f;
@@ -1063,7 +1063,7 @@ namespace IdleEmpire.UI
             });
 
             GameObject resetCancelBtnGO = CreateButton(resetConfirm.transform,
-                "✗ Cancel", ColorCard, ColorText, 200, 60);
+                "CANCEL", ColorCard, ColorText, 200, 60);
             LayoutElement rcCancelLE = resetCancelBtnGO.AddComponent<LayoutElement>();
             rcCancelLE.minHeight       = 60f;
             rcCancelLE.preferredHeight = 60f;
